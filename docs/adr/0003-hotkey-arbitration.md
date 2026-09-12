@@ -36,7 +36,7 @@ Status: accepted.
 
 ## Activation event contract
 
-The arbiter exposes four events to the domain model. The naming and fire-points are committed for the architecture (ADR-0004, pending) and reproduced verbatim in the v1 spec.
+The arbiter exposes four events to the domain model. The naming and fire-points are committed for the architecture grilling (wayfinder #12) and reproduced verbatim in the v1 spec.
 
 | Event | Fires when | Domain transition |
 |---|---|---|
