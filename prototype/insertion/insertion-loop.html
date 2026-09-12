@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voxa · Insertion loop prototype</title>
+<style>
+:root{
+  --bg:#0a0b0f; --panel:#12141a; --panel2:#171a22; --row:#161921; --row2:#1d212c;
+  --line:#232a38; --text:#eceef4; --dim:#98a1b3; --faint:#666f82;
+  --accent:#ec3b33; --accent-hi:#ff5c54; --accent-dim:rgba(236,59,51,.15);
+  --warn:#ffb86b; --bad:#ff7d7d; --ok:#62d98a;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --ui:-apple-system,"Segoe UI",system-ui,Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(1200px 800px at 70% -10%,#161019 0%,var(--bg) 62%);color:var(--text);
+  font:14px/1.45 var(--ui);-webkit-font-smoothing:antialiased;padding:32px 20px 60px}
+.wrap{max-width:940px;margin:0 auto}
+h1{font-size:20px;letter-spacing:.01em;margin:0 0 4px}
+h1 .logo{color:var(--accent);font-family:var(--mono);font-weight:700}
+.sub{color:var(--dim);font-size:13px;margin:0 0 24px}
+.sec{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:22px 0 10px;font-weight:650}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:14px}
+button{font:inherit;background:var(--row2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:7px 13px;cursor:pointer}
+button:hover{border-color:var(--faint)}
+button:disabled{opacity:.4;cursor:default}
+button.primary{background:var(--accent);border-color:transparent;color:#1a0403;font-weight:700}
+button.primary:hover{background:var(--accent-hi)}
+button.ghost{background:transparent}
+.sel{font:inherit;background:var(--row2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px 9px}
+label.f{display:inline-flex;align-items:center;gap:6px;margin-left:16px;color:var(--dim);font-size:13px}
+.envrow{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.k{font-family:var(--mono);font-size:12px;background:var(--row2);border:1px solid var(--line);border-radius:5px;padding:1px 6px;color:var(--accent-hi)}
+.grid{display:grid;grid-template-columns:1.15fr .85fr;gap:14px}
+@media(max-width:760px){.grid{grid-template-columns:1fr}}
+.fact{margin:7px 0;display:flex;gap:10px}
+.fact .lbl{width:150px;color:var(--faint);font-size:12px;text-transform:uppercase;letter-spacing:.05em;padding-top:2px}
+.fact .val{color:var(--text)}
+.fact .val em{font-style:normal;color:var(--ok)}
+.fact .val b.bad{color:var(--bad)}
+.fact .val b.warn{color:var(--warn)}
+.timeline{display:flex;gap:0;margin:14px 0 4px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.tstep{flex:1;padding:8px 6px;text-align:center;font-size:11px;color:var(--faint);border-right:1px solid var(--line);background:var(--row)}
+.tstep:last-child{border-right:none}
+.tstep .n{display:block;font-family:var(--mono);font-size:10px;color:var(--faint)}
+.tstep.kind{color:var(--ok)}
+.tstep.live{background:rgba(236,59,51,.12);color:var(--text)}
+.tstep.skipped{opacity:.35}
+.tstep.defer{opacity:.7}
+.pillbox{display:flex;align-items:center;gap:16px;flex-wrap:wrap;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--row)}
+.pill{width:134px;height:26px;border-radius:14px;background:rgba(0,0,0,.75);border:1px solid rgba(255,255,255,.14);position:relative;display:flex;align-items:center;justify-content:center;gap:2px}
+.pill .bar{width:2px;height:4px;background:#fff;opacity:0;border-radius:1px}
+.pill .bar.on{opacity:.9}
+.pill.errdim{background:rgba(60,60,66,.72);border-color:rgba(255,125,125,.35)}
+.arc{margin:auto}
+.pillnote{color:var(--dim);font-size:12px}
+.jrn{font-family:var(--mono);font-size:12px;line-height:1.6;color:var(--dim)}
+.jrn i{color:var(--accent-hi);font-style:normal}
+.notif{border:1px solid var(--line);border-left:3px solid var(--bad);border-radius:8px;padding:8px 10px;background:rgba(0,0,0,.25);margin-top:8px;font-size:13px}
+.notif.oknot{border-left-color:var(--faint)}
+.notif .cap{display:block;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-bottom:2px}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.banner{border:1px solid var(--warn);color:var(--warn);background:rgba(255,184,107,.07);border-radius:8px;padding:7px 10px;font-size:12px;margin-top:8px}
+.banner.bad{color:var(--bad);border-color:var(--bad);background:rgba(255,125,125,.06)}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.tab{border-radius:99px;padding:5px 12px;font-size:12px}
+.tab.on{background:var(--accent-dim);border-color:var(--accent);color:var(--accent-hi);font-weight:650}
+.scen-desc{color:var(--dim);font-size:13px;margin:0 0 12px;line-height:1.6}
+.scen-desc b{color:var(--text)}
+.steps{margin:0;padding:0;list-style:none}
+.steps li{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+.steps li:last-child{border-bottom:none}
+.steps .idx{color:var(--faint);font-family:var(--mono);font-size:11px;padding-top:3px;width:18px}
+.steps li.done .idx{color:var(--ok)}
+.steps li.done .txt{color:var(--faint);text-decoration:line-through}
+.steps .txt{flex:1}
+.note{margin-top:12px;font-size:12px;color:var(--ok)}
+.foot{color:var(--faint);font-size:11px;margin-top:26px}
+.foot code{font-family:var(--mono)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1><span class="logo">VOXA</span> — insertion loop prototype</h1>
+<p class="sub">The decided <b>insert-into-the-frontmost-app</b> loop (clipboard snapshot → write clean text → one paste chord → restore), runnable by hand. The question this answers: <i>does the recovers-from-everything contract hold once you push it through terminals, clipboard-only tiers, and undetectable failures?</i> It is a prototype — it simulates, it does not paste.</p>
+
+<div class="sec">Where the insert lands (environment)</div>
+<div class="card">
+  <div class="envrow">
+    <select class="sel" id="platform">
+      <option value="windows">Platform: Windows</option>
+      <option value="macos">Platform: macOS</option>
+      <option value="x11">Platform: Linux (X11)</option>
+      <option value="wayland">Platform: Linux (Wayland)</option>
+    </select>
+    <select class="sel" id="target">
+      <option value="normal">Target: normal app</option>
+      <option value="terminal">Target: terminal</option>
+      <option value="conhost">Target: cmd / conhost</option>
+      <option value="elevated">Target: elevated (admin) window</option>
+      <option value="swallow">Target: password / read-only field</option>
+      <option value="voxa">Target: Voxa itself</option>
+      <option value="none">Target: no foreground app</option>
+    </select>
+    <label class="f" id="accwrap" style="display:none"><input type="checkbox" id="acc"> macOS Accessibility granted</label>
+    <label class="f"><input type="checkbox" id="clipfail"> Clipboard write fails</label>
+  </div>
+</div>
+
+<div class="sec">The pill (as the user sees it)</div>
+<div class="card">
+  <div class="pillbox">
+    <div class="pill" id="pill">
+      <span class="bar m1"></span><span class="bar m2"></span><span class="bar m3"></span><span class="bar m4"></span><span class="bar m5"></span>
+      <span class="arc" style="display:none;width:12px;height:12px"></span>
+    </div>
+    <div class="pillnote" id="pillnote">hidden at idle</div>
+  </div>
+  <div class="banner bad" id="undetect" style="display:none">ⓘ Undetectable condition — the machine cannot tell the paste was swallowed, so it runs blind and lands on the recovery net.</div>
+  <div class="banner" id="cliponly" style="display:none">ⓘ Clipboard-only tier — no synthetic paste is possible here; clean text sits on the clipboard and <b>you</b> press the paste key.</div>
+</div>
+
+<div class="sec">Insertion loop state</div>
+<div class="card">
+  <div class="timeline">
+    <div class="tstep" id="t-snap"><span class="n">0 ms</span>snapshot<br>prior clipboard</div>
+    <div class="tstep" id="t-write"><span class="n">~80 ms</span>write<br>clean text</div>
+    <div class="tstep" id="t-chord"><span class="n">~90 ms</span>paste chord<br><span id="chordname">—</span></div>
+    <div class="tstep" id="t-restore"><span class="n">~300 ms</span>restore<br>prior clipboard</div>
+  </div>
+  <div class="grid">
+    <div>
+      <div class="fact"><span class="lbl">Loop phase</span><span class="val" id="f-phase">idle</span></div>
+      <div class="fact"><span class="lbl">Pill state</span><span class="val" id="f-pillstate">hidden</span></div>
+      <div class="fact"><span class="lbl">Chord</span><span class="val" id="f-chord">—</span></div>
+      <div class="fact"><span class="lbl">Tier</span><span class="val" id="f-tier">auto-paste</span></div>
+      <div class="fact"><span class="lbl">Clipboard</span><span class="val" id="f-clip">your prior copy</span></div>
+      <div class="fact"><span class="lbl">Last-result buffer</span><span class="val" id="f-buffer">empty</span></div>
+      <div class="fact"><span class="lbl">Paste landed</span><span class="val" id="f-landed">—</span></div>
+    </div>
+    <div>
+      <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-bottom:4px">Notifications (OS, not the pill)</div>
+      <div class="jrn" id="notifs"><i>none</i></div>
+      <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:12px 0 4px">Journal</div>
+      <div class="jrn" id="journal"><i>idle. clean text ready when you insert.</i></div>
+    </div>
+  </div>
+</div>
+
+<div class="sec">Free play</div>
+<div class="card">
+  <div class="btns">
+    <button class="primary" id="run">▶ Run full loop</button>
+    <button id="step">⟫ Step one micro-step</button>
+    <button id="miss">It didn&#39;t land</button>
+    <button id="copied">I pasted &amp; copied something else</button>
+    <button id="recover">Recover: insert last result</button>
+    <button class="ghost" id="reset">Reset</button>
+  </div>
+</div>
+
+<div class="sec">Guided walkthroughs</div>
+<div class="card">
+  <div class="tabs">
+    <button class="tab on" data-sc="1">1 · Happy path</button>
+    <button class="tab" data-sc="2">2 · Linux terminal</button>
+    <button class="tab" data-sc="3">3 · macOS, no Accessibility</button>
+    <button class="tab" data-sc="4">4 · Elevated window</button>
+    <button class="tab" data-sc="5">5 · Guard: Voxa frontmost</button>
+  </div>
+  <p class="scen-desc" id="scendesc"></p>
+  <ol class="steps" id="scensteps"></ol>
+  <div class="note" id="scennote"></div>
+</div>
+
+<p class="foot">Throwaway prototype · branch <code>prototype/insertion</code> · <code>prototype/insertion/insertion-loop.html</code>. Simulated timings: write 80 ms, chord 90 ms, restore 300 ms. Facts backing the chords: <code>research/insertion-reliability/findings.md</code>.</p>
+</div>
+
+<script>
+/* ============================================================
+   PURE LOGIC MODULE — liftable. No DOM here.
+   ============================================================ */
+const voxaInsert = {
+  initialState(env){
+    return {
+      env: env || ddfltEnv(),
+      phase: 'idle',              // idle | snapshot | write | chord | restore | awaiting | done | error
+      text: '',
+      prevClipboard: null,        // snapshot of prior clipboard, if any
+      pendingSnapshot: false,     // parked snapshot while awaiting paste
+      chord: null,                // chord fired for the current loop, if any
+      tier: 'auto',               // 'auto' | 'clipboard-only'
+      landed: null,               // bool|null, optimistic after done
+      lastResult: '',             // last-result buffer
+      notifs: [],
+      jrn: []
+    };
+  },
+
+  chord(env){
+    if (env.platform==='macos') return '⌘V';
+    if (env.platform==='windows') return env.target==='conhost' ? 'Shift+Insert' : 'Ctrl+V';
+    if (env.platform==='x11') return env.target==='terminal' ? 'Ctrl+Shift+V' : 'Ctrl+V';
+    return env.platform==='wayland' ? null : 'Ctrl+V';
+  },
+
+  // tier: clipboard-only when no synthetic paste is possible
+  clipboardOnly(env){
+    return (env.platform==='macos' && !env.accessibilityGranted) || env.platform==='wayland';
+  },
+
+  // conditions the machine cannot observe post-hoc
+  undetectable(env){
+    return env.target==='elevated' || env.target==='swallow';
+  },
+
+  dispatch(state, action){
+    const s = state, e = s.env;
+    const j = m => [...s.jrn, m].slice(-9);
+    const n = (cap, m) => [...s.notifs, {cap, m}];
+
+    switch (action.type) {
+
+      case 'BEGIN_INSERT': {
+        if (s.phase!=='idle' && s.phase!=='done' && s.phase!=='error' && s.phase!=='awaiting')
+          return {...s, jrn: j('already in an insert — ignoring')};
+        if (e.clipboardWriteFails) {
+          return {...s, phase:'write', jrn: j('loop: write clean text → clipboard write FAILS')};
+        }
+        if (e.target==='none')
+          return {...s, phase:'error', jrn: j('guard: no foreground app — not inserting'), notifs: n('Insertion failed','No foreground app to insert into. Text is safe — press ⇧⌘V to insert the last result.')};
+        if (e.target==='voxa')
+          return {...s, phase:'error', jrn: j('guard: Voxa itself is frontmost — not inserting into yourself'), notifs: n('Insertion failed','Voxa is the frontmost app. Focus any other app, then press ⇧⌘V to insert the last result.')};
+        const prev = { text:'your prior copy' };
+        return {
+          ...s,
+          phase:'snapshot', text:action.text || s.lastResult || 'Clean text 1',
+          prevClipboard: prev, pendingSnapshot:false, landed:null,
+          jrn: j(`begin insert: snapshot prior clipboard → ${prev.text}\`\``)
+        };
+      }
+
+      case 'STEP': {
+        // advance the micro-loop by one step
+        switch (s.phase) {
+          case 'snapshot':
+            return {...s, phase:'write', jrn: j('snapshot taken (kept aside)')};
+          case 'write': {
+            if (e.clipboardWriteFails)
+              return {...s, phase:'error', jrn: j('write FAILED — clipboard is unavailable; text kept in last-result buffer'), notifs: n('Insertion failed','Could not write to the clipboard. The last result is safe — press ⇧⌘V to insert it.')};
+            const auto = !voxaInsert.clipboardOnly(e);
+            if (!auto) {
+              return {...s, phase:'awaiting', clipboard:'clean', pendingSnapshot:true,
+                     lastResult: s.lastResult||s.text,
+                     jrn: j('clipboard-only: clean text written to the clipboard — press paste yourself'),
+                     notifs: n('Copied · you paste','Clean text is on the clipboard. Press ⌘V to insert it.')};
+            }
+            return {...s, phase:'chord', chord:voxaInsert.chord(e), jrn: j(`write: clipboard now holds clean text; fire ${voxaInsert.chord(e)}` )};
+          }
+          case 'chord':
+            return {...s, phase:'restore', jrn: j(`chord ${s.chord} fired into frontmost app`)};
+          case 'restore':
+            return {...s, phase:'done', landed:true, clipboard:'restored', jrn: j('restored: your prior clipboard is back'), notifs: []};
+          default:
+            return s;
+        }
+      }
+
+      case 'WRITE_FAIL': // for Step UX when clipboard fails
+        return {...s, phase:'error', jrn: j('write FAILED — text kept in last-result buffer'), notifs: n('Insertion failed','Could not write to the clipboard. The last result is safe — press ⇧⌘V to insert it.')};
+
+      case 'MISS': {  // user tells us "it didn't land"
+        if (s.phase==='done') {
+          return {...s, landed:false, jrn: j('marked NOT landed — clipboard still holds the text you saw; recovery offered'),
+                 notifs: n('It may not have landed','Not sure it pasted? Press ⇧⌘V or use the tray item to insert the last result.')};
+        }
+        if (s.phase==='awaiting') {
+          return {...s, jrn: j('awaiting paste — that is expected here; nothing to miss yet')};
+        }
+        return s;
+      }
+
+      case 'COPIED_ELSE': { // user pasted + copied something new (only meaningful while awaiting)
+        if (s.phase!=='awaiting') return s;
+        // honest rule: the moment the clipboard moves on, the parked snapshot can no longer be restored
+        return {...s, phase:'idle', pendingSnapshot:false, clipboard:'something new', prevClipboard:null,
+                jrn: j('clipboard changed away from clean text — parked snapshot DROPPED (cannot restore over your new copy)')};
+      }
+
+      case 'RECOVER': {  // insert last result — manual, never retried for you
+        if (!s.lastResult) return {...s, jrn: j('nothing in the last-result buffer to recover')};
+        return voxaInsert.dispatch(s, {type:'BEGIN_INSERT', text:s.lastResult});
+      }
+
+      case 'RESET':
+        return voxaInsert.initialState(e);
+
+      default:
+        return s;
+    }
+  }
+};
+
+function ddfltEnv(){
+  return { platform:'windows', target:'normal', accessibilityGranted:false, clipboardWriteFails:false };
+}
+
+/* ============================================================
+   PAGE SHELL — thin, throwaway. Reads state, dispatches actions.
+   ============================================================ */
+let state = voxaInsert.initialState(ddfltEnv());
+let running = null;
+
+const $ = id => document.getElementById(id);
+
+function envFromUI(){
+  return {
+    platform: $('platform').value,
+    target: $('target').value,
+    accessibilityGranted: $('acc').checked,
+    clipboardWriteFails: $('clipfail').checked
+  };
+}
+
+function render(){
+  const e = state.env, auto = !voxaInsert.clipboardOnly(e);
+  $('accwrap').style.display = e.platform==='macos' ? 'inline-flex' : 'none';
+  if (e.platform!=='macos') $('acc').checked = false;
+
+  const p = state.phase;
+  $('f-phase').textContent = p;
+  $('f-chord').textContent = state.chord || (voxaInsert.clipboardOnly(e) ? 'none (clipboard-only)' : '—');
+  $('f-tier').textContent = voxaInsert.clipboardOnly(e) ? 'clipboard-only' : 'auto-paste';
+  $('f-clip').innerHTML = state.prevClipboard && p==='snapshot' ? `${state.prevClipboard.text} <em>(kept aside)</em>`
+    : p==='write' || p==='chord' ? 'clean text <b class="bad">(yours was blown away)</b>'
+    : p==='awaiting' ? 'clean text <b class="warn">(waiting for your paste)</b>'
+    : p==='restore' || p==='done' ? 'your prior copy <em>(restored)</em>'
+    : state.env.clipboardWriteFails && p==='error' ? 'untouched <b class="bad">(write failed)</b>'
+    : p==='error' ? 'untouched'
+    : 'your prior copy';
+  $('f-buffer').textContent = state.lastResult ? `"${state.lastResult}"` : 'empty';
+  $('f-landed').innerHTML = state.landed===null ? '—' : state.landed===true ? '<em>✓ (optimistic)</em>' : '<b class="bad">✗ suspected miss</b>';
+
+  // pill
+  const pillClass = p==='error' ? 'errdim' : (p==='done' ? 'errdim' : '');
+  $('pill').className = 'pill ' + pillClass;
+  const bars = $('pill').querySelectorAll('.bar');
+  const arc = $('pill').querySelector('.arc');
+  bars.forEach(b=>b.classList.remove('on'));
+  arc.style.display='none';
+  let pillnote;
+  if (p==='idle') pillnote='hidden at idle';
+  else if (p==='snapshot'||p==='write'||p==='chord'||p==='restore'){ pillnote='inserting — spinner'; arc.style.display='inline-block'; arc.innerHTML='<svg width=12 height=12 viewBox="0 0 12 12"><circle cx=6 cy=6 r=4.5 fill=none stroke=#fff stroke-width=1.6 stroke-dasharray=7 stroke-dashoffset=2 stroke-linecap=round></svg>'; }
+  else if (p==='awaiting'){ pillnote='awaiting your paste — pill still'; bars.forEach((b,i)=>{ if(i%2) b.classList.add('on'); }); }
+  else if (p==='done') pillnote='done — brief flash, back to hidden';
+  else pillnote='error — dimmed grey';
+  $('pillnote').textContent = pillnote;
+
+  // banner
+  $('undetect').style.display = voxaInsert.undetectable(e) && auto ? 'block' : 'none';
+  $('cliponly').style.display = voxaInsert.clipboardOnly(e) ? 'block' : 'none';
+
+  // chord name in timeline
+  $('chordname').textContent = state.chord || (voxaInsert.clipboardOnly(e) ? 'you paste' : '—');
+
+  // timeline
+  const steps = ['snapshot','write','chord','restore'];
+  const live = p;
+  steps.forEach(nm=>{
+    const el = $('t-'+nm);
+    el.className='tstep';
+    if (p===nm) el.classList.add('live');
+    if (['done','error'].includes(p)) el.classList.remove('live');
+  });
+  if (voxaInsert.clipboardOnly(e)){
+    $('t-chord').classList.add('skipped'); $('t-chord').classList.add('defer'); $('t-chord').querySelector('.n').textContent='skipped';
+    $('t-restore').classList.add('defer'); $('t-restore').querySelector('.n').textContent='deferred';
+    if (p==='awaiting') $('t-restore').classList.add('live');
+  } else {
+    $('t-chord').querySelector('.n').textContent='~90 ms';
+    $('t-restore').querySelector('.n').textContent='~300 ms';
+    if (p==='awaiting'){} 
+  }
+  if (p==='error'){ steps.forEach(nm=>{ if(nm!=='write' || !e.clipboardWriteFails) $('t-'+nm).classList.remove('live'); }); }
+
+  // journal + notifications
+  $('journal').innerHTML = state.jrn.length ? state.jrn.map(m=>'· '+m.replace(/`/g,'')).join('<br>') : '<i>idle.</i>';
+  $('notifs').innerHTML = state.notifs.length
+    ? state.notifs.map(x=>`<div class="notif"><span class="cap">${x.cap}</span>${x.m}</div>`).join('')
+    : '<i>none</i>';
+
+  renderScenario();
+}
+
+/* actions */
+function dispatch(type, args){
+  state = voxaInsert.dispatch(state, {type, ...(args||{})});
+  render();
+}
+
+function runFull(){
+  if (running) clearInterval(running);
+  const seq = ['STEP','STEP','STEP','STEP'];
+  let i=0;
+  running = setInterval(()=>{
+    if (i>=seq.length){ clearInterval(running); running=null; return; }
+    // if awaiting, stop early
+    if (state.phase==='awaiting'){ clearInterval(running); running=null; return; }
+    dispatch(seq[i++]);
+  }, 420);
+}
+
+$('run').addEventListener('click', ()=>{
+  state = voxaInsert.dispatch(state, {type:'BEGIN_INSERT'}); render(); runFull();
+});
+$('step').addEventListener('click', ()=>dispatch('STEP'));
+$('miss').addEventListener('click', ()=>dispatch('MISS'));
+$('copied').addEventListener('click', ()=>dispatch('COPIED_ELSE'));
+$('recover').addEventListener('click', ()=>dispatch('RECOVER'));
+$('reset').addEventListener('click', ()=>{
+  if (running){ clearInterval(running); running=null; }
+  state = voxaInsert.initialState(envFromUI()); render();
+});
+['platform','target','acc','clipfail'].forEach(id=>$(id).addEventListener('change', ()=>{
+  if (running){ clearInterval(running); running=null; }
+  state = voxaInsert.initialState(envFromUI()); render();
+}));
+
+/* ---- guided scenarios ---- */
+const scen = {
+ 1:{ title:'Happy path — Windows, a normal app',
+     desc:'The common case: you hold the key, speak, and clean text inserts into the app in front of you. Watch the clipboard lane: your prior copy is snapped aside, clean text is written, the chord fires, and your clipboard is given back — <b>the whole window is a few hundred milliseconds</b>.',
+     env:{platform:'windows',target:'normal',accessibilityGranted:false,clipboardWriteFails:false},
+     steps:[
+       ['run','Press <b>▶ Run full loop</b> — watch phase: snapshot → write → chord → restore → done'],
+       ['miss','Press <b>It didn&#39;t land</b> — the recovery net for the rare case paste actually got swallowed'],
+       ['recover','Press <b>Recover: insert last result</b> — re-runs the loop from the in-memory buffer'],
+     ],
+     end:'The loop is quiet on success: no notification, clipboard restored, pill flashes and hides.' },
+ 2:{ title:'Linux terminal — X11, GNOME Terminal',
+     desc:'The chord matters here. Plain Ctrl+V in a Linux terminal sends a literal <b>^V</b> into the shell — the allowlist picks <b>Ctrl+Shift+V</b> for the terminal class instead.',
+     env:{platform:'x11',target:'terminal',accessibilityGranted:false,clipboardWriteFails:false},
+     steps:[
+       ['run','Press <b>▶ Run full loop</b> — read the chord shown in the timeline: Ctrl+Shift+V, not Ctrl+V'],
+     ],
+     end:'No user action needed; the right chord is chosen for a terminal target. Editors still get Ctrl+V.' },
+ 3:{ title:'Clipboard-only — macOS without Accessibility, or Wayland',
+     desc:'No synthetic paste is possible, so Voxa drops into the <b>clipboard-only tier</b>: clean text goes on the clipboard, a system notification tells you to paste, and <b>you</b> press ⌘V. Watch the restore problem this creates.',
+     env:{platform:'macos',target:'normal',accessibilityGranted:false,clipboardWriteFails:false},
+     steps:[
+       ['run','Press <b>▶ Run full loop</b> — the loop stops at “awaiting your paste”; the chord step is skipped'],
+       ['copied','Press <b>I pasted &amp; copied something else</b> — now watch what happens to the parked snapshot'],
+     ],
+     end:'The parked “your prior copy” snapshot is DROPPED once you move the clipboard on — restoring would clobber your new copy. Contract that was surfaced by pushing the loop: in the clipboard-only tier, your prior clipboard is <b>not</b> returned. This is the honest trade-off to react to.' },
+ 4:{ title:'Elevated window — Windows, admin app',
+     desc:'An elevated (Run-as-admin) app is a higher-integrity target: Windows silently drops injected keys. The machine <b>cannot tell</b> — it runs blind, says done, and lands on the recovery net when it doesn&#39;t land.',
+     env:{platform:'windows',target:'elevated',accessibilityGranted:false,clipboardWriteFails:false},
+     steps:[
+       ['run','Press <b>▶ Run full loop</b> — note the “undetectable” banner and the optimistic ✓'],
+       ['miss','Press <b>It didn&#39;t land</b> — notification offers recovery'],
+       ['recover','Press <b>Recover: insert last result</b> — same app is still frontmost, so it runs blind again; switch target to <b>normal app</b> in the environment, then recover in free play'],
+     ],
+     end:'Recovery is never a blind retry — the user drives it, and it only lands when the user is in the right place.' },
+ 5:{ title:'Guard — Voxa itself is frontmost',
+     desc:'The pill triggers while Voxa (its Settings window) has focus. Inserting into yourself is nonsense — the guard fails fast, <b>before</b> the clipboard is touched.',
+     env:{platform:'windows',target:'voxa',accessibilityGranted:false,clipboardWriteFails:false},
+     steps:[
+       ['run','Press <b>▶ Run full loop</b> — fails at the guard: error state, clipboard untouched, notification with the recovery hint'],
+       ['recover','Press <b>Recover: insert last result</b> — while Voxa is still frontmost it errors again; switch target to <b>normal app</b> and recover once more'],
+     ],
+     end:'The guard makes it impossible to paste inside Voxa; recovery is available the moment the user is elsewhere.' }
+};
+
+let curSc = '1';
+function renderScenario(){
+  const s = scen[curSc];
+  const done = scenDones[curSc]||0;
+  $('scendesc').innerHTML = s.desc;
+  $('scensteps').innerHTML = s.steps.map((st,i)=>{
+    return `<li class="${i<done?'done':''}"><span class="idx">${i+1}</span><span class="txt">${st[1]}</span></li>`;
+  }).join('');
+  $('scennote').textContent = '';
+  if (done>=s.steps.length) $('scennote').textContent = s.end;
+}
+let scenDones = {};
+
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click',()=>{
+    curSc = t.dataset.sc;
+    document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===t));
+    const s = scen[curSc];
+    state = voxaInsert.initialState(s.env);
+    render();
+    scenDones[curSc] = 0;
+    renderScenario();
+  });
+});
+
+render();
+</script>
+</body>
+</html>
