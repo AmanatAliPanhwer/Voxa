@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<!--
+  PROTOTYPE — throwaway, do not ship.
+  Voxa pill — FINAL chosen direction, tuned to match the Wispr Flow desktop "Flow Bar".
+  Design rules (from the human, HITL reaction):
+    * Direction A — a capsule.
+    * The capsule carries ONLY the visualizer. No dot, no hint, no label, no pill buttons.
+  Ground truth researched from Wispr docs + field guide (see research/whispr-pill/findings.md):
+    * dark capsule pill, shows status: resting / recording / processing
+    * listening = white animated waveform; voice detected = waveform turns blue
+    * waveform goes flat after a short period of silence (honest gate)
+    * processing = thin progress line, no text
+    * offline/error = pill turns grey
+    * ping on start, paste sound on submit
+  Run: open this file in a browser. Hold Space or the "Hold to speak" button.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Voxa pill — final (Wispr-pure)</title>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { height:100%; }
+  body {
+    font:13px/1.45 "Inter","Segoe UI",system-ui,sans-serif; color:#cfd6e4;
+    background:linear-gradient(160deg,#0b0d12,#141822); overflow:hidden;
+    -webkit-user-select:none; user-select:none;
+  }
+  .stage { position:fixed; inset:0; overflow:hidden; }
+  .stage-grid { position:absolute; inset:0;
+    background-image:linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),
+                     linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px);
+    background-size:44px 44px; opacity:.5; pointer-events:none; }
+  .fwin { position:absolute; border-radius:10px; border:1px solid rgba(255,255,255,.10);
+          background:rgba(255,255,255,.04); box-shadow:0 20px 50px -22px rgba(0,0,0,.55); overflow:hidden; }
+  .fwin .bar { height:30px; display:flex; align-items:center; gap:6px; padding:0 10px;
+               border-bottom:1px solid rgba(255,255,255,.10); }
+  .fwin .bar i { width:9px; height:9px; border-radius:50%; background:#3a4256; display:inline-block; }
+  .fwin .bar b { font-weight:600; font-size:11px; color:#8b93a7; margin-left:6px; }
+  .fwin .body { padding:12px 14px; }
+  .fwin .body p { height:7px; border-radius:4px; background:rgba(255,255,255,.10); margin-bottom:8px; }
+  #wNotes  { left:6%;  top:22%; width:300px; height:190px; opacity:.85; }
+  #wBrowser{ right:6%; top:26%; width:340px; height:150px; opacity:.7; }
+  .fwin .body p:nth-child(3){ width:64%; } .fwin .body p:nth-child(4){ width:48%; }
+  /* caret: where text would land */
+  #wNotes .caret { height:15px; width:2px; background:#6d7cff; display:inline-block;
+                   vertical-align:-3px; animation:blink 1s steps(1) infinite; opacity:.8; }
+  @keyframes blink { 50% { opacity:0 } }
+
+  .note { position:absolute; left:50%; transform:translateX(-50%); top:54px;
+    font-size:10.5px; color:#5b6377; letter-spacing:.06em; text-transform:uppercase;
+    text-align:center; line-height:1.8; pointer-events:none; white-space:nowrap; }
+
+  /* ---------- THE PILL: a capsule carrying ONLY the visualizer ---------- */
+  .pill {
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    height:34px; min-width:0;
+    border-radius:999px;
+    background:linear-gradient(180deg,#171b24,#0e1116);
+    border:1px solid rgba(255,255,255,.10);
+    box-shadow:0 10px 30px -10px rgba(0,0,0,.75), inset 0 1px 0 rgba(255,255,255,.06);
+    display:flex; align-items:center; justify-content:center;
+    padding:0 14px; cursor:grab; transition:width .28s ease, box-shadow .2s ease;
+
+    width:96px; width:var(--pw, 96px);
+  }
+  .pill.dragging { cursor:grabbing; }
+  .pill.state-listening, .pill.state-processing, .pill.state-inserting { --pw:240px; }
+  .pill.state-inserted { --pw:240px; }
+  .pill.state-error, .pill.state-offline { --pw:96px; }
+  /* voice detected: subtle blue glow on the capsule */
+  .pill.voice { box-shadow:0 10px 30px -10px rgba(0,0,0,.75), 0 0 22px -4px rgba(109,124,255,.55); }
+  /* busy pulse while processing (thin progress strip sits in the capsule) */
+  .pill.state-processing, .pill.state-inserting { box-shadow:0 10px 30px -10px rgba(0,0,0,.75), 0 0 14px -6px rgba(255,255,255,.14); }
+  /* start ping: quick ripple glow */
+  .pill.pinging { animation:startPing .45s ease-out; }
+  @keyframes startPing { 0%{box-shadow:0 0 0 0 rgba(109,124,255,.5)} 100%{box-shadow:0 0 0 18px rgba(109,124,255,0)} }
+  /* inserted: brief white flash */
+  .pill.state-inserted { animation:insertFlash .5s ease; }
+  @keyframes insertFlash { 0%{box-shadow:0 10px 30px -10px rgba(0,0,0,.75),0 0 0 0 rgba(255,255,255,.8)}
+                           45%{box-shadow:0 10px 30px -10px rgba(0,0,0,.75),0 0 0 16px rgba(255,255,255,0)} }
+
+  .pill .meter { display:flex; align-items:center; justify-content:center; gap:2.5px; height:22px; }
+  .pill .cell { width:4px; height:100%; display:flex; align-items:center; justify-content:center; }
+  .pill .cell i { width:4px; height:2px; border-radius:2px; background:#ffffff;
+                  opacity:.88; transition:height .045s linear; }
+  /* voice detected -> blue; processing -> muted white; error/offline -> grey */
+  .pill.voice .cell i { background:#6d7cff; opacity:1; }
+  .pill.state-processing .cell i, .pill.state-inserting .cell i { background:#fff; opacity:.42; }
+  .pill.state-error .cell i, .pill.state-offline .cell i { background:#9aa2b5; opacity:.5; }
+  .pill.state-error .meter, .pill.state-offline .meter { animation:greyPulse 2s ease-in-out infinite; }
+  @keyframes greyPulse { 0%,100%{opacity:.5} 50%{opacity:1} }
+
+  /* processing/inserting progress strip — the only other thing inside */
+  .pill .proc { position:absolute; left:18px; right:18px; bottom:2px; height:2px;
+                border-radius:2px; background:transparent; overflow:hidden; display:none; }
+  .pill.state-processing .proc { display:block; }
+  .pill.state-inserting .proc { display:block; }
+  .pill .proc i { position:absolute; left:0; top:0; bottom:0; width:0%;
+                  background:#6d7cff; border-radius:2px; transition:width .09s linear; }
+  .pill.state-processing .proc i { width:26% !important; transition:none;
+    background:linear-gradient(90deg,transparent,#6d7cff,transparent);
+    animation:shimmer 1.05s ease-in-out infinite; }
+  @keyframes shimmer { 0%{transform:translateX(-120%)} 100%{transform:translateX(460%)} }
+
+  /* ---------- scaffolding (NOT part of the pill) ---------- */
+  .controls { position:fixed; top:0; left:0; right:0; min-height:46px; display:flex;
+    align-items:center; gap:8px; padding:6px 12px; background:rgba(255,255,255,.04);
+    border-bottom:1px solid rgba(255,255,255,.10); z-index:20; flex-wrap:wrap; }
+  .controls .grp { display:flex; align-items:center; gap:4px; padding-right:10px;
+    border-right:1px solid rgba(255,255,255,.10); margin-right:4px; flex-wrap:wrap; }
+  .controls button { font-family:inherit; border:1px solid rgba(255,255,255,.12);
+    background:rgba(255,255,255,.05); color:#cfd6e4; border-radius:7px; padding:5px 9px;
+    font-size:11.5px; cursor:pointer; }
+  .controls button:hover { background:rgba(255,255,255,.12); }
+  .controls button.active { background:rgba(109,124,255,.20); border-color:#6d7cff; color:#aab4ff; }
+  .controls .speak { background:linear-gradient(160deg,#6d7cff,#8f7bff); color:#fff; font-weight:700;
+    border:none; border-radius:8px; padding:6px 16px; min-width:130px; }
+  .controls .speak:active { filter:brightness(1.15); }
+  .controls .cap { font-size:9.5px; color:#5b6377; letter-spacing:.06em; text-transform:uppercase; }
+  .tele { position:fixed; top:52px; right:12px; z-index:10; font:11px ui-monospace,Consolas,monospace;
+    color:#8b93a7; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.10);
+    border-radius:8px; padding:4px 10px; display:flex; gap:12px; pointer-events:none; }
+  .tele b { color:#e7ecf5; font-weight:600; }
+  .tele .on { color:#34d399; } .tele .off { color:#fb7185; }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="stage-grid"></div>
+  <div class="note">the pill carries only the visualizer — no dots, hints, or labels · click it to start · drag it to move<br>
+    (controls below are prototype scaffolding, not product UI)</div>
+  <div class="fwin" id="wNotes">
+    <div class="bar"><i></i><i></i><i></i><b>Notes — Voxa entry</b></div>
+    <div class="body"><p></p><p></p><p></p><p></p><p></p><p style="width:82%">Standing meeting <span class="caret"></span></p></div>
+  </div>
+  <div class="fwin" id="wBrowser">
+    <div class="bar"><i></i><i></i><i></i><b>Browser</b></div>
+    <div class="body"><p></p><p style="width:70%"></p><p></p><p style="width:52%"></p></div>
+  </div>
+
+  <!-- the pill -->
+  <div class="pill state-resting" id="pill">
+    <span class="proc"><i></i></span>
+    <div class="meter" id="meter"></div>
+  </div>
+</div>
+
+<div class="controls" id="controls"></div>
+<div class="tele" id="tele"></div>
+
+<script>
+/* honest R3-derived meter: ~45ms attack / ~220ms release, -60/-50 dB hysteresis gate -> silence renders STILL */
+const GATE = { on:-60, off:-50 };
+const ACOEF = 1 - Math.exp(-1/(0.045*60));
+const RCOEF = 1 - Math.exp(-1/(0.220*60));
+
+const engine = {
+  state:'resting',        // resting|listening|processing|inserting|inserted|error|offline
+  voice:false,            // white bars -> blue when voice above gate
+  speaking:false,
+  t:0, smooth:0, db:-100, gated:true, level:0, progress:0,
+  sound:true,
+  micCtx:null, micAn:null,
+};
+
+const SYLLABS=[0.55,0.95,0.7,1.0,0.62,0.85,0.5,0.9,0.4,0.75,1.0,0.66,0.82,0.58,0.92,0.68];
+function speechSample(t){
+  const sy=Math.floor(t/0.16), k=(t-sy*0.16)/0.16;
+  const env=Math.pow(Math.sin(Math.PI*k),0.7);
+  const amp=SYLLABS[((sy%SYLLABS.length)+SYLLABS.length)%SYLLABS.length];
+  const voice=(0.9+0.1*Math.sin(2*Math.PI*30*t))*(1+0.05*Math.sin(2*Math.PI*13*t)+0.04*Math.sin(2*Math.PI*47*t+2));
+  return Math.max(0.0001,(amp*env*voice+(Math.random()-0.5)*0.05*env)*0.8);
+}
+
+/* audio cues: ping on start, paste sound on submit (Wispr behavior) */
+function beep(freq, from, dur, gain){
+  if(!engine.sound) return;
+  try{
+    if(!engine.micCtx) engine.micCtx=new (window.AudioContext||window.webkitAudioContext)();
+    const c=engine.micCtx,o=c.createOscillator(),g=c.createGain();
+    o.type='sine'; o.frequency.value=freq;
+    const t=c.currentTime; g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(gain,t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g).connect(c.destination); o.start(t); o.stop(t+dur+0.02);
+  }catch(e){}
+}
+function ping(){ beep(880,0,0.16,0.10); setTimeout(()=>beep(880,0,0.16,0.05),110); }
+function pasteSound(){ beep(1318,0,0.07,0.08); setTimeout(()=>beep(1568,0,0.09,0.06),75); }
+
+/* states */
+function setState(s){ engine.state=s; engine.progress=0;
+  const pill=document.getElementById('pill');
+  pill.classList.remove('state-resting','state-listening','state-processing','state-inserting','state-inserted','state-error','state-offline');
+  pill.classList.add('state-'+s);
+  if(s==='error'||s==='offline') pill.classList.remove('voice');
+}
+function startSession(){ if(engine.state!=='resting') return; setState('listening'); ping();
+  const p=document.getElementById('pill'); p.classList.add('pinging'); setTimeout(()=>p.classList.remove('pinging'),500); }
+function endListening(){ setState('processing'); setTimeout(()=>{ if(engine.state==='processing') setState('inserting'); }, 1500); }
+function finishInsert(){ setState('inserted'); pasteSound(); setTimeout(()=>{ if(engine.state==='inserted') setState('resting'); }, 520); }
+function cancel(){ setState('resting'); }
+
+/* the meter — only safe to touch when ids exist */
+const pill=document.getElementById('pill');
+const meter=document.getElementById('meter');
+const bars=[];
+function fitBars(n){
+  while(meter.children.length<n){ const c=document.createElement('span'); c.className='cell'; c.appendChild(document.createElement('i')); meter.appendChild(c); bars.push(c.firstChild); }
+  while(meter.children.length>n) meter.removeChild(meter.lastChild);
+  bars.length=n;
+  // rebuild live references
+  for(let i=0;i<n;i++) bars[i]=meter.children[i].firstChild;
+}
+const ph=Array.from({length:60},()=>Math.random()*Math.PI*2);
+function paint(){
+  const st=engine.state;
+  const n = (st==='resting'||st==='error'||st==='offline') ? 12 : 34;
+  fitBars(n);
+  let disp=0;
+  if(st==='listening')           disp=engine.level;
+  else if(st==='inserting')      disp=0.05;
+  else if(st==='processing')     disp=0.05;
+  else if(st==='inserted')       disp=0;
+  const maxH=20;
+  for(let i=0;i<n;i++){
+    const w=n>1?Math.pow(Math.sin(Math.PI*i/(n-1)),0.55):1;
+    const wob=0.72+0.28*Math.sin(engine.t*9+ph[i]);
+    const h=disp>0?Math.max(2,Math.round(w*disp*wob*maxH)):2;
+    bars[i].style.height=h+'px';
+  }
+  document.getElementById('pill').classList.toggle('voice', st==='listening' && !engine.gated);
+  if(st==='inserting') engine.progress=Math.min(1,engine.progress+1/(60*1.2));
+  document.querySelector('.proc i').style.width=(engine.progress*100)+'%';
+  telemetry();
+}
+function telemetry(){
+  document.getElementById('tele').innerHTML=
+    'state <b>'+engine.state+'</b>'+
+    'wave <b>'+ (engine.state==='listening'&&!engine.gated ? 'blue (voice)' : (engine.state==='listening'?'white (silence)':'—'))+'</b>'+
+    'rms <b>'+(engine.db<=-70?'&#8722;inf':engine.db.toFixed(1)+' dB')+'</b>'+
+    'gate <span class="'+(engine.gated?'off':'on')+'">'+(engine.gated?'SILENT':'LIVE')+'</span>'+
+    'bars <span class="'+(engine.level>0?'on':'off')+'">'+(engine.level>0?'moving':'STILL')+'</span>';
+}
+
+function frame(){
+  requestAnimationFrame(frame);
+  engine.t+=1/60;
+  let target;
+  if(engine.micAn) target=micRms();
+  else target=(engine.speaking||(engine.state==='listening'&&!engine.speaking&&false)) ? speechSample(engine.t) : 0.00035;
+  const coef=target>engine.smooth?ACOEF:RCOEF;
+  engine.smooth+=(target-engine.smooth)*coef;
+  engine.db=20*Math.log10(engine.smooth+1e-9);
+  if(engine.db<=GATE.on) engine.gated=true; else if(engine.db>=GATE.off) engine.gated=false;
+  engine.level=engine.gated?0:Math.min(1,(engine.db-GATE.on)/(0-GATE.on)*1.12);
+  paint();
+}
+function micRms(){
+  const buf=new Float32Array(engine.micAn.fftSize);
+  engine.micAn.getFloatTimeDomainData(buf);
+  let s=0; for(let i=0;i<buf.length;i++) s+=buf[i]*buf[i];
+  return Math.sqrt(s/buf.length)*1.5;
+}
+
+/* controls */
+document.getElementById('controls').innerHTML=
+  '<div class="grp"><span class="cap">dictation</span>'+
+    '<button class="speak" id="ctl-speak">Hold to speak</button>'+
+    '<button id="ctl-start">Start+auto</button>'+
+    '<button id="ctl-cancel">&#10005; cancel</button>'+
+  '</div>'+
+  '<div class="grp"><span class="cap">simulate</span>'+
+    '<button id="ctl-error">Error (grey)</button>'+
+    '<button id="ctl-off">Offline (grey)</button>'+
+    '<button id="ctl-clear">Clear</button>'+
+  '</div>'+
+  '<div class="grp"><span class="cap">audio cues</span>'+
+    '<button id="ctl-snd">Sounds ON</button>'+
+  '</div>';
+const $=id=>document.getElementById(id);
+
+const spk=$('ctl-speak');
+function holdOn(e){ if(e)e.preventDefault(); engine.speaking=true; spk.classList.add('active'); if(engine.state==='resting') startSession(); }
+function holdOff(){ engine.speaking=false; spk.classList.remove('active'); if(engine.state==='listening') endListening(); }
+spk.addEventListener('pointerdown',holdOn);
+window.addEventListener('pointerup',holdOff);
+window.addEventListener('keydown',e=>{
+  if(e.code==='Space'&&!(e.target.tagName==='BUTTON'||e.target.tagName==='INPUT')){ e.preventDefault(); if(!engine.speaking){ engine.speaking=true; if(engine.state==='resting') startSession(); } }
+  if(e.code==='Escape') cancel();
+});
+window.addEventListener('keyup',e=>{ if(e.code==='Space'){ engine.speaking=false; if(engine.state==='listening') endListening(); } });
+$('ctl-start').addEventListener('click',()=>{
+  startSession(); engine.speaking=true;
+  setTimeout(()=>{ engine.speaking=false; if(engine.state==='listening') endListening(); },1500);
+});
+$('ctl-cancel').addEventListener('click',cancel);
+$('ctl-error').addEventListener('click',()=>{ engine.soundCache=engine.sound; engine.sound=false; setState('error'); });
+$('ctl-off').addEventListener('click',()=>{ engine.soundCache=engine.sound; engine.sound=false; setState('offline'); });
+$('ctl-clear').addEventListener('click',()=>{ engine.sound=engine.soundCache; setState('resting'); });
+$('ctl-snd').addEventListener('click',function(){ engine.sound=!engine.sound; this.textContent=engine.sound?'Sounds ON':'Sounds OFF'; this.classList.toggle('active',engine.sound); });
+
+/* click the pill to start (Wispr: click center bubble) ; drag to move ; Escape cancels */
+let drag=null;
+pill.addEventListener('pointerdown',e=>{
+  const stage=document.querySelector('.stage'), sr=stage.getBoundingClientRect(), r=pill.getBoundingClientRect();
+  drag={x0:e.clientX,y0:e.clientY,dx:e.clientX-r.left,dy:e.clientY-r.top,moved:0};
+  pill.style.left=(r.left-sr.left)+'px'; pill.style.top=(r.top-sr.top)+'px';
+  pill.style.transform='none'; pill.style.margin='0';
+  pill.classList.add('dragging'); e.preventDefault();
+});
+window.addEventListener('pointermove',e=>{
+  if(!drag)return;
+  drag.moved=Math.max(drag.moved, Math.abs(e.clientX-drag.x0)+Math.abs(e.clientY-drag.y0));
+  const stage=document.querySelector('.stage').getBoundingClientRect();
+  let x=e.clientX-drag.dx-stage.left, y=e.clientY-drag.dy-stage.top;
+  x=Math.max(0,Math.min(stage.width-pill.offsetWidth,x)); y=Math.max(0,Math.min(stage.height-pill.offsetHeight,y));
+  pill.style.left=x+'px'; pill.style.top=y+'px';
+});
+window.addEventListener('pointerup',()=>{
+  const click = drag && drag.moved<8; drag=null; pill.classList.remove('dragging');
+  if(click && engine.state==='resting') startSession();
+});
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
