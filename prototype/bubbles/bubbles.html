@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<!--
+  PROTOTYPE — throwaway, do not ship (wayfinder ticket #15: companion control bubbles for the pill).
+  Extends the pill construction from prototype/pill/pill-final.html (branch prototype/pill):
+    * pill window 140x32, transparent, borderless, always-on-top, click-through
+    * docked bottom-center, 80px up from the screen bottom
+    * #pill inset:3px -> ~134x26 visible, border-radius 14px, bg rgba(0,0,0,.75),
+      border 1px solid rgba(255,255,255,.08)
+    * listening -> 12 x 2px white bars (bell envelope 4,7,10,13,15,16,15,13,10,7,4,7),
+      RMS-driven with a -60/-50 dBFS gate so silence = flat still bars
+    * processing/inserting -> 12px arc spinner; pill dims grey on error/offline
+  The pill stays a VISUALIZER ONLY (no text inside, stays click-through — ADR-0002/#8).
+  This prototype adds the companion STOP bubble that flanks the pill while hands-free is armed
+  (ADR-0003: toggle-on -> pill + Stop bubble persist for the whole hands-free period; hold-to-talk
+  -> pill only, no bubbles, the hand is on the key; lock-in reveals the bubble mid-session; the
+  bubble ends the session, which processes the clip — there is no cancel, per ADR-0001).
+  The hotkey simulation is the ADR-0003 arbiter at prototype fidelity (150 ms tap/hold,
+  300 ms double-tap window, lock-in on release+repress inside the window).
+  Three structural variants, switchable with ?variant=A|B|C (or the top bar):
+    A · Drop     — separate 24px filled-red disc, 6px gap LEFT of the pill, its own clickable window.
+    B · Sputnik  — 26px ring-outline dot straddling the pill's LEFT edge; reads as one attached unit.
+    C · Rail     — 26px red squircle flush against the pill's RIGHT edge; one continuous bar.
+  Scaffolding below (top bar, slider, telemetry) is NOT product UI.
+  Run: open this file in a browser. Hold Space = hold-to-talk; quick double-tap = hands-free toggle;
+  release + repress during a hold = lock-in (bubble appears mid-session); click the bubble = stop
+  & insert; click the edge slider to move the dock toward a screen edge and watch the bubble mirror.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Voxa companion bubbles — prototype (wayfinder #15)</title>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  :root{
+    --bg:#0a0b0f; --panel:#12141a; --panel2:#171a22; --line:#232a38;
+    --text:#eceef4; --dim:#98a1b3; --faint:#666f82;
+    --red:#ec3b33; --ember:#ff5c54; --reddim:rgba(236,59,51,.15);
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  html,body { height:100%; }
+  body {
+    font:13px/1.45 "Inter","Segoe UI",system-ui,sans-serif; color:var(--text);
+    background:var(--bg); overflow:hidden; -webkit-user-select:none; user-select:none;
+  }
+  .stage { position:fixed; inset:0; overflow:hidden; }
+  .stage-grid { position:absolute; inset:0;
+    background-image:linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),
+                     linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px);
+    background-size:44px 44px; opacity:.5; pointer-events:none; }
+  .fwin { position:absolute; border-radius:10px; border:1px solid rgba(255,255,255,.10);
+          background:rgba(255,255,255,.04); box-shadow:0 20px 50px -22px rgba(0,0,0,.55); overflow:hidden; }
+  .fwin .bar { height:30px; display:flex; align-items:center; gap:6px; padding:0 10px;
+               border-bottom:1px solid rgba(255,255,255,.10); }
+  .fwin .bar i { width:9px; height:9px; border-radius:50%; background:#3a4256; display:inline-block; }
+  .fwin .bar b { font-weight:600; font-size:11px; color:#8b93a7; margin-left:6px; }
+  .fwin .body { padding:12px 14px; }
+  .fwin .body p { height:7px; border-radius:4px; background:rgba(255,255,255,.10); margin-bottom:8px; }
+  #wNotes  { left:6%;  top:26%; width:300px; height:170px; opacity:.85; }
+  #wBrowser{ right:6%; top:30%; width:340px; height:140px; opacity:.7; }
+  .fwin .body p:nth-child(3){ width:64%; } .fwin .body p:nth-child(4){ width:48%; }
+  #wNotes .caret { height:15px; width:2px; background:var(--red); display:inline-block;
+                   vertical-align:-3px; animation:blink 1s steps(1) infinite; opacity:.8; }
+  @keyframes blink { 50% { opacity:0 } }
+  .note { position:absolute; left:50%; transform:translateX(-50%); top:64px;
+    font-size:10.5px; color:var(--faint); letter-spacing:.06em; text-transform:uppercase;
+    text-align:center; line-height:1.8; pointer-events:none; white-space:nowrap; }
+
+  /* ======= THE DOCK ======= bottom-center, 80px up, mirrors the pill's overlay window.
+     The pill strip (140x32 window) is click-through in the real app; bubbles are separate
+     clickable windows flanking it. In the browser the dock stands in for both. */
+  .dock {
+    position:absolute; bottom:80px; width:140px; height:32px; pointer-events:none;
+  }
+  #pill {
+    position:absolute; inset:3px;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(0,0,0,.75);
+    border:1px solid rgba(255,255,255,.08);
+    border-radius:14px;
+    opacity:0;
+    transition:opacity .25s ease;
+  }
+  #pill.visible { opacity:1; }
+  #pill.error, #pill.offline { animation:greyPulse 2s ease-in-out infinite; }
+  #pill.error { border-color:rgba(251,113,133,.45); }
+  @keyframes greyPulse { 0%,100%{opacity:.55} 50%{opacity:1} }
+  #pill.inserted-flash { animation:insertFlash .45s ease; }
+  @keyframes insertFlash { 0%{box-shadow:0 0 0 0 rgba(255,255,255,.7),inset 0 0 0 0 rgba(255,255,255,.4)}
+                           45%{box-shadow:0 0 0 14px rgba(255,255,255,0),inset 0 0 18px 0 rgba(255,255,255,.5)}
+                           100%{box-shadow:0 0 0 0 rgba(255,255,255,0),inset 0 0 0 0 rgba(255,255,255,0)} }
+  #wave-container { display:none; align-items:center; gap:2px; height:16px; padding:0 8px; }
+  #pill.listening #wave-container { display:flex; }
+  .bar { width:2px; border-radius:1px; background:white; height:2px; }
+  #pill.error .bar, #pill.offline .bar { background:rgba(255,255,255,.55); }
+  #spinner-container { display:none; align-items:center; justify-content:center; padding:0 8px; }
+  #pill.processing #spinner-container, #pill.inserting #spinner-container { display:flex; }
+  .arc-spinner { width:12px; height:12px;
+    border:2px solid transparent; border-top-color:rgba(255,255,255,.85);
+    border-radius:50%; animation:spin .7s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  /* ======= THE BUBBLE (variant classes) ======= */
+  .bubble {
+    position:absolute; pointer-events:auto; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    opacity:0; transition:opacity .2s ease, transform .12s ease;
+    z-index:5;
+  }
+  .bubble.show { opacity:1; }
+  .bubble:hover { transform:scale(1.06); }
+  .bubble .glyph { position:relative; }
+  .bubble .glyph::after {
+    content:""; position:absolute; left:50%; top:50%;
+    width:9px; height:9px; border-radius:2px; background:currentColor;
+    transform:translate(-50%,-50%);
+  }
+
+  /* A · Drop — filled red disc, 24px, gap 6px, its own window */
+  .bA { width:24px; height:24px; border-radius:50%;
+        background:var(--red); color:#fff;
+        box-shadow:0 4px 14px -4px rgba(236,59,51,.55), 0 0 0 1px rgba(236,59,51,.35); }
+  .bA:hover { background:var(--ember); }
+
+  /* B · Sputnik — ring-outline dot straddling the pill's left edge */
+  .bB { width:26px; height:26px; border-radius:50%;
+        background:transparent; color:var(--red);
+        border:2px solid var(--red); }
+  .bB.show { background:transparent; }
+  .bB:hover { background:var(--red); color:#fff; border-color:var(--red); }
+  .bB.hot { background:var(--red); color:#fff; }
+
+  /* C · Rail — squircle flush against the pill's right edge, one continuous bar */
+  .bC { width:26px; height:26px; border-radius:3px 13px 13px 3px;
+        background:var(--red); color:#fff;
+        box-shadow:inset 1px 0 0 rgba(255,255,255,.14); }
+  .bC:hover { background:var(--ember); }
+
+  /* tooltip — hover only, never inside the pill or on the strip */
+  #tip { position:fixed; z-index:60; pointer-events:none;
+    background:#0d0f15; border:1px solid var(--line); border-radius:8px;
+    padding:6px 10px; font-size:11px; color:var(--text);
+    box-shadow:0 10px 30px -12px rgba(0,0,0,.6);
+    opacity:0; transition:opacity .08s ease;
+  }
+  #tip .k { font-family:var(--mono); font-size:10.5px; color:var(--faint); margin-top:1px; }
+
+  /* ---------- scaffolding (NOT product UI) ---------- */
+  #rocket { position:fixed; top:0; left:0; right:0; z-index:40; min-height:50px;
+    display:flex; align-items:center; gap:10px; padding:6px 14px; flex-wrap:wrap;
+    background:rgba(13,15,21,.92); border-bottom:1px solid var(--line); backdrop-filter:blur(6px); }
+  #rocket .cap { font-size:9.5px; color:var(--faint); letter-spacing:.09em; text-transform:uppercase; }
+  #rocket .grp { display:flex; align-items:center; gap:6px; padding-right:12px;
+    border-right:1px solid var(--line); margin-right:4px; }
+  #rocket button { font-family:inherit; font-size:11.5px; cursor:pointer; color:var(--text);
+    background:var(--panel); border:1px solid var(--line); border-radius:7px; padding:5px 9px; }
+  #rocket button:hover { background:var(--panel2); }
+  #rocket button.active { background:var(--reddim); border-color:rgba(236,59,51,.5); color:var(--ember); }
+  #rocket .nav { display:flex; align-items:center; gap:6px; }
+  #rocket .nav b { font-size:12px; font-family:var(--mono); }
+  #rocket .nav .variant { color:var(--ember); }
+  #rocket .nav .desc { color:var(--dim); font-weight:600; }
+  #edge { width:150px; accent-color:var(--red); }
+  #tele { position:fixed; top:58px; right:12px; z-index:30; font:11px var(--mono);
+    color:var(--dim); background:rgba(255,255,255,.04); border:1px solid var(--line);
+    border-radius:8px; padding:4px 10px; display:grid; grid-template-columns:auto auto; gap:2px 14px;
+    pointer-events:none; }
+  #tele b { color:var(--text); font-weight:600; }
+  #tele .on { color:var(--red); } #tele .off { color:var(--faint); }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="stage-grid"></div>
+  <div class="note">bubbles are presentation-layer companions to the click-through pill — Stop appears only while<br>
+    hands-free is armed (ADR-0003): hold-to-talk = pill only, lock-in reveals it, click/bubble or double-tap ends it</div>
+  <div class="fwin" id="wNotes">
+    <div class="bar"><i></i><i></i><i></i><b>Notes — Voxa entry</b></div>
+    <div class="body"><p></p><p></p><p></p><p></p><p></p><p style="width:82%">Standing meeting <span class="caret"></span></p></div>
+  </div>
+  <div class="fwin" id="wBrowser">
+    <div class="bar"><i></i><i></i><i></i><b>Browser</b></div>
+    <div class="body"><p></p><p style="width:70%"></p><p></p><p style="width:52%"></p></div>
+  </div>
+
+  <div class="dock" id="dock">
+    <div id="pill">
+      <div id="wave-container"></div>
+      <div id="spinner-container"><div class="arc-spinner"></div></div>
+    </div>
+  </div>
+</div>
+
+<div id="tip"><div id="tipT"></div><div class="k" id="tipK"></div></div>
+
+<div id="rocket">
+  <div class="grp nav">
+    <span class="cap">variant</span>
+    <button id="vPrev">◀</button>
+    <b><span id="vKey" class="variant">A</span> <span class="desc" id="vDesc">Drop</span></b>
+    <button id="vNext">▶</button>
+  </div>
+  <div class="grp">
+    <span class="cap">edge</span>
+    <input type="range" id="edge" min="0" max="100" value="50" title="drag the dock toward a screen edge">
+  </div>
+  <div class="grp">
+    <span class="cap">demo</span>
+    <button id="bHold">Hold 1.8s</button>
+    <button id="bToggle">Toggle hands-free</button>
+    <button id="bLock">Lock-in (hold→hands-free)</button>
+    <button id="bStop">Stop &amp; insert</button>
+  </div>
+  <div class="grp">
+    <span class="cap">simulate</span>
+    <button id="bMic">Mic OFF</button>
+    <button id="bError">Error (grey)</button>
+    <button id="bOff">Offline (grey)</button>
+    <button id="bClear">Clear</button>
+  </div>
+</div>
+<div id="tele"></div>
+
+<script>
+"use strict";
+const A = { TAP:150, DTWIN:300 };
+const ENVELOPE = [4,7,10,13,15,16,15,13,10,7,4,7];
+const BARS = 12;
+const GATE={on:-60,off:-50};
+const ACOEF=1-Math.exp(-1/(0.045*60));
+const RCOEF=1-Math.exp(-1/(0.220*60));
+const SYLLABS=[0.55,0.95,0.7,1.0,0.62,0.85,0.5,0.9,0.4,0.75,1.0,0.66,0.82,0.58,0.92,0.68];
+const VARIANTS=[
+  {key:'A', name:'Drop',     cls:'bA', side:'L', desc:'filled red disc, 6px gap, its own window'},
+  {key:'B', name:'Sputnik',  cls:'bB', side:'L', desc:'ring outline straddling the pill\x27s left edge'},
+  {key:'C', name:'Rail',     cls:'bC', side:'R', desc:'red squircle flush on the pill\x27s right edge'},
+];
+const DOCKW=140, DOCKH=32, PILLINSET=3;
+
+const dock=document.getElementById('dock');
+const pill=document.getElementById('pill');
+const wave=document.getElementById('wave-container');
+const bars=[];
+for(let i=0;i<BARS;i++){ const b=document.createElement('div'); b.className='bar'; wave.appendChild(b); bars.push(b); }
+const ph=Array.from({length:BARS},()=>Math.random()*Math.PI*2);
+
+const engine={ state:'resting', mode:'hold', t:0, smooth:0, db:-100, gated:true, level:0,
+               sound:true, mic:false, micCtx:null, micAn:null, speaking:false };
+
+/* ------------- arbiter (ADR-0003, prototype fidelity) ------------- */
+const arb={ stage:'idle', down:false, pressT:0, tapTimer:0, tapPending:false,
+            lockTimer:0, lockPending:false, holdTimer:0 };
+function onKeyDown(){
+  if(arb.down) return;
+  arb.down=true; arb.pressT=performance.now();
+  clearTimeout(arb.tapTimer);
+  if(arb.stage==='tapwait'){ arb.tapPending=true; arb.stage='idle'; }
+  if(arb.stage==='holdActive'){ clearTimeout(arb.lockTimer); arb.lockPending=true; }
+  arb.holdTimer=setTimeout(()=>{
+    if(!arb.down) return;
+    if(arb.stage==='idle'){
+      if(engine.mode==='handsfree'){ /* hold during hands-free = no-op */ }
+      else { startListen('hold'); arb.stage='holdActive'; }
+    }
+  }, A.TAP+1);
+}
+function onKeyUp(){
+  if(!arb.down) return;
+  arb.down=false; clearTimeout(arb.holdTimer);
+  const dur=performance.now()-arb.pressT;
+  if(arb.stage==='holdActive' && arb.lockPending && dur<=A.TAP){
+    arb.lockPending=false; arb.stage='idle'; lockIn();
+  } else if(arb.stage==='holdActive'){
+    clearTimeout(arb.lockTimer);
+    arb.lockTimer=setTimeout(()=>{ if(arb.stage==='holdActive'){ arb.stage='idle'; holdReleased(); } }, A.DTWIN);
+  } else if(arb.tapPending && dur<=A.TAP){
+    arb.tapPending=false;
+    if(engine.mode==='handsfree') toggleOff(); else toggleOn();
+  } else if(dur<=A.TAP){
+    arb.stage='tapwait';
+    arb.tapTimer=setTimeout(()=>{ arb.stage='idle'; }, A.DTWIN); /* lone tap: silent no-op */
+  } else {
+    arb.stage='idle';
+  }
+}
+function startListen(mode){
+  if(engine.state!=='resting') return;
+  engine.mode=mode;
+  pill.classList.add('listening'); setState('listening'); applyVis(true);
+  setBubbles(mode==='handsfree');
+  ping();
+}
+function lockIn(){
+  if(engine.state!=='listening') return;
+  engine.mode='handsfree';
+  setBubbles(true);
+}
+function endSession(){ /* hold-released / toggle-off / bubble click */
+  if(engine.state!=='listening') return;
+  setBubbles(false);
+  setState('processing');
+  setTimeout(()=>{ if(engine.state==='processing'){ setState('inserting'); } },1500);
+  setTimeout(()=>{ if(engine.state==='inserting'){ setState('inserted'); pasteSound(); } },2200);
+  setTimeout(()=>{ if(engine.state==='inserted') setState('resting'); },2680);
+}
+function toggleOn(){ startListen('handsfree'); }
+function toggleOff(){ endSession(); }
+function holdReleased(){ endSession(); }
+function stopBubble(){ endSession(); }
+
+/* ------------- pill visual states ------------- */
+function setState(s){
+  engine.state=s;
+  pill.classList.remove('listening','processing','inserting','inserted-flash','error','offline');
+  if(s==='listening') pill.classList.add('listening');
+  else if(s==='processing'||s==='inserting') pill.classList.add(s);
+  else if(s==='inserted') pill.classList.add('inserted-flash');
+  else if(s==='error'||s==='offline') pill.classList.add(s);
+  applyVis(s!=='resting');
+}
+function applyVis(show){ pill.classList.toggle('visible',show); }
+function cancel(){ clearState(); }
+function clearState(){
+  setBubbles(false); setState('resting');
+}
+function beep(freq,dur,gain){
+  if(!engine.sound) return;
+  try{
+    if(!engine.micCtx) engine.micCtx=new(window.AudioContext||window.webkitAudioContext)();
+    const c=engine.micCtx,o=c.createOscillator(),g=c.createGain();
+    o.type='sine';o.frequency.value=freq; const t=c.currentTime;
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(gain,t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g).connect(c.destination); o.start(t); o.stop(t+dur+0.02);
+  }catch(e){}
+}
+function ping(){ beep(880,0.14,0.10); setTimeout(()=>beep(880,0.14,0.05),110); }
+function pasteSound(){ beep(1318,0.07,0.08); setTimeout(()=>beep(1568,0.09,0.06),75); }
+
+/* ------------- variant bubble construction ------------- */
+let variant=null, bubble=null, bubbleV=null;
+function setBubbles(show){
+  if(bubble){ bubble.classList.toggle('show',show); bubble.style.pointerEvents=show?'auto':'none'; }
+}
+function buildBubble(v){
+  if(bubble){ bubble.remove(); bubble=null; }
+  bubbleV=v;
+  const b=document.createElement('div');
+  b.className='bubble '+v.cls;
+  b.innerHTML='<div class="glyph"></div>';
+  dock.appendChild(b);
+  b.addEventListener('click',()=>{ if(engine.state==='listening' && engine.mode==='handsfree') stopBubble(); });
+  let tOut=0;
+  b.addEventListener('mouseenter',()=>{ tOut=setTimeout(showTip,220); });
+  b.addEventListener('mouseleave',()=>{ clearTimeout(tOut); hideTip(); });
+  b.addEventListener('click',()=>{ clearTimeout(tOut); hideTip(); });
+  bubble=b;
+  placeBubble();
+  setBubbles(engine.mode==='handsfree' && engine.state==='listening');
+}
+function placeBubble(){
+  if(!bubble) return;
+  const mirrored=dockX < 92; /* left edge approaching: mirror to the inner side */
+  bubble.className='bubble '+bubbleV.cls; /* reset any state junk */
+  bubble.style.left=''; bubble.style.right=''; bubble.style.top=''; bubble.style.transform='';
+  if(bubbleV.cls==='bA'){
+    bubble.style.top='4px';
+    bubble.style.left=mirrored?(DOCKW+6)+'px':(-30)+'px';
+  } else if(bubbleV.cls==='bB'){
+    bubble.style.top='3px';
+    bubble.style.left=mirrored?(DOCKW-13)+'px':(-13)+'px';
+  } else { /* bC rail */
+    bubble.style.top='3px';
+    if(mirrored){ bubble.style.left=(-23)+'px'; bubble.style.borderRadius='13px 3px 3px 13px';
+                  bubble.style.boxShadow='inset -1px 0 0 rgba(255,255,255,.14)'; }
+    else { bubble.style.left=(DOCKW-PILLINSET)+'px'; bubble.style.borderRadius='3px 13px 13px 3px';
+           bubble.style.boxShadow='inset 1px 0 0 rgba(255,255,255,.14)'; }
+  }
+}
+let dockX=0;
+function placeDock(){
+  dockX=(innerWidth-DOCKW)*edge.value/100;
+  dock.style.left=dockX+'px';
+  placeBubble();
+}
+
+/* ------------- tooltip ------------- */
+const tip=document.getElementById('tip'), tipT=document.getElementById('tipT'), tipK=document.getElementById('tipK');
+const TIP_HINT='same as double-tap the hotkey';
+function showTip(){
+  if(!bubble) return;
+  const r=bubble.getBoundingClientRect();
+  tipT.textContent='Stop dictation';
+  tipK.textContent=variant.side==='L' && !(dockX<92) ? TIP_HINT : TIP_HINT;
+  tip.style.left=r.left+r.width/2+'px';
+  tip.style.top=(r.top-12)+'px';
+  tip.style.transform='translate(-50%,-100%)';
+  tip.style.opacity='1';
+}
+function hideTip(){ tip.style.opacity='0'; }
+
+/* ------------- render loop ------------- */
+function speechSample(t){
+  const sy=Math.floor(t/0.16), k=(t-sy*0.16)/0.16;
+  const env=Math.pow(Math.sin(Math.PI*k),0.7);
+  const amp=SYLLABS[((sy%SYLLABS.length)+SYLLABS.length)%SYLLABS.length];
+  const voice=(0.9+0.1*Math.sin(2*Math.PI*30*t))*(1+0.05*Math.sin(2*Math.PI*13*t)+0.04*Math.sin(2*Math.PI*47*t+2));
+  return Math.max(0.0001,(amp*env*voice+(Math.random()-0.5)*0.05*env)*0.8);
+}
+function micRms(){
+  const buf=new Float32Array(engine.micAn.fftSize);
+  engine.micAn.getFloatTimeDomainData(buf);
+  let s=0; for(let i=0;i<buf.length;i++) s+=buf[i]*buf[i];
+  return Math.sqrt(s/buf.length)*1.5;
+}
+function frame(){
+  requestAnimationFrame(frame);
+  engine.t+=1/60;
+  let target;
+  if(engine.micAn) target=micRms();
+  else target=(engine.state==='listening' && engine.speaking)?speechSample(engine.t):0.00035;
+  const coef=target>engine.smooth?ACOEF:RCOEF;
+  engine.smooth+=(target-engine.smooth)*coef;
+  engine.db=20*Math.log10(engine.smooth+1e-9);
+  if(engine.db<=GATE.on)engine.gated=true; else if(engine.db>=GATE.off) engine.gated=false;
+  engine.level=engine.gated?0:Math.min(1,(engine.db-GATE.on)/(0-GATE.on)*1.12);
+  paint(); tele();
+}
+function paint(){
+  const s=engine.state;
+  for(let i=0;i<BARS;i++){
+    let h=2;
+    if(s==='listening' && engine.level>0){
+      const wob=0.72+0.28*Math.sin(engine.t*9+ph[i]);
+      h=Math.round(ENVELOPE[i]*engine.level*(0.3+0.7*wob));
+      h=Math.max(2,h);
+    }
+    bars[i].style.height=h+'px';
+  }
+}
+function tele(){
+  const s=engine.state, mode=engine.mode, bs=(engine.state==='listening'&&engine.mode==='handsfree');
+  document.getElementById('tele').innerHTML=
+    'state <b>'+s+'</b>'+' mode <b class="'+(mode==='handsfree'?'on':'off')+'">'+mode+'</b>'+
+    'arb <b>'+arb.stage+'</b>'+' bubble <b class="'+(bs?'on':'off')+'">'+(bs?'ARMED':'hidden')+'</b>'+
+    'rms <b>'+(engine.db<=-70?'&#8722;inf':engine.db.toFixed(1)+' dB')+'</b>'+
+    'gate <b class="'+(engine.gated?'off':'on')+'">'+(engine.gated?'SILENT':'LIVE')+'</b>'+
+    'bars <b class="'+(engine.level>0?'on':'off')+'">'+(engine.level>0?'moving':'still')+'</b>';
+}
+
+/* ------------- UI wiring ------------- */
+function applyVariant(){
+  const v=VARIANTS.find(x=>x.key===variant);
+  document.getElementById('vKey').textContent=v.key;
+  document.getElementById('vDesc').textContent=v.name;
+  buildBubble(v);
+}
+function cycle(dir){
+  let i=VARIANTS.findIndex(x=>x.key===variant);
+  i=(i+dir+VARIANTS.length)%VARIANTS.length;
+  variant=VARIANTS[i].key;
+  const u=new URL(location.href); u.searchParams.set('variant',variant);
+  history.pushState({},'',u);
+  applyVariant();
+}
+const $=id=>document.getElementById(id);
+document.getElementById('vPrev').addEventListener('click',()=>cycle(-1));
+document.getElementById('vNext').addEventListener('click',()=>cycle(1));
+document.addEventListener('keydown',e=>{
+  if(e.target.matches('input,textarea,[contenteditable]')) return;
+  if(e.code==='Space'){ e.preventDefault(); if(!engine.sound) return; engine.speaking=true; onKeyDown(); }
+  if(e.code==='ArrowLeft') cycle(-1);
+  if(e.code==='ArrowRight') cycle(1);
+});
+document.addEventListener('keyup',e=>{
+  if(e.target.matches('input,textarea,[contenteditable]')) return;
+  if(e.code==='Space'){ e.preventDefault(); engine.speaking=false; onKeyUp(); }
+});
+$('edge').addEventListener('input',placeDock);
+$('bHold').addEventListener('click',()=>{ if(engine.state!=='resting')return; engine.speaking=true; startListen('hold');
+  setTimeout(()=>{ engine.speaking=false; holdReleased(); },1800); });
+$('bToggle').addEventListener('click',()=>{ if(engine.state==='resting') toggleOn(); else if(engine.mode==='handsfree') toggleOff(); });
+$('bLock').addEventListener('click',()=>{ if(engine.state==='resting'){ engine.speaking=true; startListen('hold');
+  setTimeout(()=>{ engine.speaking=false; lockIn(); engine.speaking=true;
+    setTimeout(()=>{ engine.speaking=false; toggleOff(); },1500); },800); } });
+$('bStop').addEventListener('click',stopBubble);
+$('bError').addEventListener('click',()=>{ clearState(); engine.sound=false; setState('error'); });
+$('bOff').addEventListener('click',()=>{ clearState(); engine.sound=false; setState('offline'); });
+$('bClear').addEventListener('click',()=>{ engine.sound=true; clearState(); });
+$('bMic').addEventListener('click',async function(){
+  if(engine.micAn){ engine.micAn.disconnect(); engine.micAn=null; this.textContent='Mic OFF'; return; }
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    engine.micCtx=engine.micCtx||new(window.AudioContext||window.webkitAudioContext)();
+    const src=engine.micCtx.createMediaStreamSource(stream);
+    engine.micAn=engine.micCtx.createAnalyser(); engine.micAn.fftSize=1024;
+    src.connect(engine.micAn);
+    this.textContent='Mic ON';
+  }catch(err){ this.textContent='Mic failed'; }
+});
+
+/* init */
+const q=new URLSearchParams(location.search);
+variant=VARIANTS.some(x=>x.key===q.get('variant'))?q.get('variant'):'A';
+applyVariant(); placeDock();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
