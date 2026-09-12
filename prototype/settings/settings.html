@@ -6,33 +6,40 @@
 <title>Voxa Settings — prototype (wayfinder #9)</title>
 <!--
   PROTOTYPE (throwaway, wayfinder ticket: prototype: settings surface).
-  Three structurally different settings surfaces for the Voxa dictation app,
-  switchable via ?variant=A|B|C and the floating bar below.
-  Deadline: react and one of these (or a mix) becomes the spec's settings chapter.
+  Direction A (native sidebar) is the winner; this iteration folds in the owner's
+  reaction: red & black branding (palette/type/mark in the ▤ Brand panel), and an
+  activation scheme comparing "two hotkeys" vs "Wispr one-key double-tap" —
+  the ▤ modeScheme switch in the Activation pane is prototype-only, to pick v1.
+  Switchable via ?variant=A|B|C and the floating bar below.
   No persistence, no build, double-click this file.
 -->
 <style>
   :root{
-    --bg:#0b0d12; --panel:#151922; --panel2:#1b2029; --row:#1a1f29; --row2:#232936;
-    --line:#262d3b; --text:#e8ebf2; --dim:#9aa3b5; --faint:#6b7385;
-    --accent:#4fc8b8; --accent-dim:rgba(79,200,184,.14); --warn:#ffb86b; --bad:#ff7d7d; --ok:#62d98a;
+    --bg:#0a0b0f; --panel:#12141a; --panel2:#171a22; --row:#161921; --row2:#1d212c;
+    --line:#232a38; --text:#eceef4; --dim:#98a1b3; --faint:#666f82;
+    --accent:#ec3b33; --accent-hi:#ff5c54; --accent-dim:rgba(236,59,51,.15);
+    --warn:#ffb86b; --bad:#ff7d7d; --ok:#62d98a;
     --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --ui:-apple-system,"Segoe UI",system-ui,Roboto,Helvetica,Arial,sans-serif;
   }
   *{box-sizing:border-box}
-  body{margin:0;background:radial-gradient(1200px 800px at 70% -10%,#141926 0%,var(--bg) 60%);color:var(--text);
-    font:14px/1.45 -apple-system,"Segoe UI",system-ui,Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  body{margin:0;background:radial-gradient(1200px 800px at 70% -10%,#161019 0%,var(--bg) 62%);color:var(--text);
+    font:14px/1.45 var(--ui);-webkit-font-smoothing:antialiased}
   #stage{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:56px 24px 90px}
   .win{width:100%;max-width:880px;background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;
     box-shadow:0 30px 80px rgba(0,0,0,.5)}
   .titlebar{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.02)}
-  .titlebar .dot{width:10px;height:10px;border-radius:50%}
-  .titlebar .name{font-weight:600;font-size:13px;letter-spacing:.2px}
+  .logo{display:flex;align-items:center;gap:9px;font-weight:800;letter-spacing:.05em;font-size:14px}
+  .logo .bars{display:flex;align-items:flex-end;gap:2px;height:14px}
+  .logo .bars i{width:3px;background:var(--accent);border-radius:1px;display:block}
+  .titlebar .name{font-weight:600;font-size:13px;letter-spacing:.2px;color:var(--dim)}
   .titlebar .sub{margin-left:auto;color:var(--faint);font-size:11px}
   .titlebar .ttr{margin-left:8px;font-size:11px;color:var(--dim);border:1px solid var(--line);padding:3px 8px;border-radius:99px}
-  h2.sec{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:0 0 8px;font-weight:600}
+  h2.sec{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:0 0 8px;font-weight:650}
   button{font:inherit;background:var(--row2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer}
   button:hover{border-color:#3a4559}
-  button.primary{background:var(--accent);border-color:transparent;color:#05221e;font-weight:600}
+  button.primary{background:var(--accent);border-color:transparent;color:#1a0403;font-weight:700}
+  button.primary:hover{background:var(--accent-hi);border-color:transparent}
 
   /* ---------------- shared row primitives ---------------- */
   .row{display:flex;align-items:center;gap:12px;padding:12px 16px}
@@ -42,36 +49,42 @@
   .row .ctl{flex:none;display:flex;align-items:center;gap:8px}
   .tg{width:38px;height:22px;border-radius:99px;background:var(--row2);border:1px solid var(--line);position:relative;cursor:pointer;transition:.15s}
   .tg.on{background:var(--accent);border-color:var(--accent)}
-  .tg:after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#e8ebf2;transition:.15s}
+  .tg:after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#eceef4;transition:.15s}
   .tg.on:after{left:18px}
   .seg{display:inline-flex;background:var(--row2);border:1px solid var(--line);border-radius:9px;padding:3px;gap:2px}
   .seg button{background:transparent;border:0;border-radius:7px;padding:4px 11px;color:var(--dim)}
-  .seg button.on{background:var(--row2);color:var(--text);box-shadow:inset 0 0 0 1px var(--line)}
+  .seg button.on{background:var(--row2);color:var(--text);box-shadow:inset 0 0 0 1px var(--accent)}
   select{background:var(--row2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit;max-width:220px}
   input[type=password]{background:var(--row2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit;width:230px}
-  .kbtn{background:var(--row2);border:1px dashed #3b4557;border-radius:8px;padding:7px 12px;font:12px var(--mono);color:var(--text);min-width:132px;text-align:center}
+  input[type=password]:focus{outline:none;border-color:var(--accent)}
+  .kbtn{background:var(--row2);border:1px dashed #414c61;border-radius:8px;padding:7px 12px;font:12px var(--mono);color:var(--text);min-width:132px;text-align:center}
   .kbtn.cap{border-style:solid;border-color:var(--accent)}
   .meter{width:220px;height:26px;background:var(--row2);border:1px solid var(--line);border-radius:8px;overflow:hidden;position:relative}
-  .meter .f{position:absolute;inset:0;transform-origin:left;background:linear-gradient(90deg,#334155,#4fc8b8 70%,#ffb86b);opacity:.85}
+  .meter .f{position:absolute;inset:0;transform-origin:left;background:linear-gradient(90deg,#1d212c 0%,#ec3b33 95%);opacity:.9}
   .meter .min,.meter .max{position:absolute;top:50%;transform:translateY(-50%);font-size:9px;color:var(--faint)}
   .meter .min{left:6px}.meter .max{right:6px}
-  .link{color:var(--accent);background:none;border:0;padding:0;cursor:pointer;font-size:12px}
+  .link{color:var(--accent-hi);background:none;border:0;padding:0;cursor:pointer;font-size:12px}
   .badge{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--dim)}
   .badge.ok{color:var(--ok);border-color:rgba(98,217,138,.4)}
   .badge.warn{color:var(--warn);border-color:rgba(255,184,107,.4)}
+  .badge.brand{color:var(--accent-hi);border-color:rgba(236,59,51,.45)}
   .note{font-size:12px;color:var(--faint);margin:2px 0 0}
 
   /* ---------------- variant A: sidebar / native prefs ---------------- */
-  #vA{display:flex;min-height:520px}
-  #vA nav{width:210px;border-right:1px solid var(--line);background:rgba(255,255,255,.015);padding:14px 10px}
+  #vA{display:flex;min-height:540px}
+  #vA nav{width:215px;border-right:1px solid var(--line);background:rgba(255,255,255,.015);padding:14px 10px}
   #vA nav .navrow{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:9px;color:var(--dim);cursor:pointer;font-size:13px}
   #vA nav .navrow.on{background:var(--accent-dim);color:var(--text)}
-  #vA nav .navrow .ic{width:16px;text-align:center}
+  #vA nav .navrow.on .ic{color:var(--accent-hi)}
+  #vA nav .navrow .ic{width:17px;text-align:center;font-size:13px}
   #vA nav .owner{margin:4px 0 14px;padding:8px 12px;color:var(--faint);font-size:12px;border-bottom:1px solid var(--line)}
+  #vA nav .owner b{color:var(--text)}
   #vA .pane{flex:1;overflow:auto;padding:22px 26px 26px}
   #vA .pane .rows{border:1px solid var(--line);border-radius:12px;background:var(--panel2);overflow:hidden}
   #vA .pane .row + .row{border-top:1px solid var(--line)}
   #vA .pane .foot{margin-top:18px;display:flex;justify-content:flex-end}
+  #vA .pane .scheme-hint{margin-top:10px;color:var(--faint);font-size:11.5px;display:flex;align-items:center;gap:6px}
+  #vA .pane .scheme-hint b{color:var(--accent-hi);font-weight:600}
 
   /* ---------------- variant B: single scroll + search ---------------- */
   #vB{max-width:680px;margin:0 auto}
@@ -83,7 +96,7 @@
   #vB .card{background:var(--panel2);border:1px solid var(--line);border-radius:14px;margin:14px 0;overflow:hidden}
   #vB .card .chead{display:flex;align-items:center;gap:10px;padding:12px 18px;border-bottom:1px solid var(--line)}
   #vB .card .chead .ic{width:20px;text-align:center}
-  #vB .card .chead .t{font-weight:600}
+  #vB .card .chead .t{font-weight:650}
   #vB .card .chead .cnt{margin-left:auto;font-size:11px;color:var(--faint)}
   #vB .card .row + .row{border-top:1px solid var(--line)}
   #vB .row.fade{opacity:.18}
@@ -91,22 +104,22 @@
 
   /* ---------------- variant C: tiered / progressive ---------------- */
   #vC{max-width:640px;margin:0 auto}
-  #vC .status{display:flex;gap:18px;padding:16px 20px;border-bottom:1px solid var(--line);align-items:center;background:rgba(255,255,255,.015)}
+  #vC .status{display:flex;gap:18px;padding:16px 20px;border-bottom:1px solid var(--line);align-items:center;background:rgba(255,255,255,.015);flex-wrap:wrap}
   #vC .status .chip{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dim)}
   #vC .status .chip .dot{width:8px;height:8px;border-radius:50%;background:var(--faint)}
   #vC .status .chip .dot.ok{background:var(--ok);box-shadow:0 0 8px rgba(98,217,138,.7)}
-  #vC .status .chip .dot.bad{background:var(--bad)}
+  #vC .status .chip .dot.brand{background:var(--accent);box-shadow:0 0 8px rgba(236,59,51,.7)}
   #vC .body{padding:18px 20px 24px}
   #vC .tier{background:var(--panel2);border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:16px}
   #vC .tier .tierhead{display:flex;align-items:center;gap:10px;padding:13px 18px;cursor:pointer;user-select:none}
-  #vC .tier .tierhead .t{font-weight:600;font-size:13px}
+  #vC .tier .tierhead .t{font-weight:650;font-size:13px}
   #vC .tier .tierhead .d{color:var(--faint);font-size:12px}
   #vC .tier .tierhead .chev{margin-left:auto;color:var(--faint);transition:.15s}
   #vC .tier.collapsed .chev{transform:rotate(-90deg)}
   #vC .tier .tierbody{border-top:1px solid var(--line)}
   #vC .tier.collapsed .tierbody{display:none}
   #vC .tier .row + .row{border-top:1px solid var(--line)}
-  #vC .tier.hl{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 14px 40px rgba(79,200,184,.10)}
+  #vC .tier.hl{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 14px 40px rgba(236,59,51,.10)}
   #vC .footer{display:flex;justify-content:space-between;align-items:center;color:var(--faint);font-size:12px;padding:2px 4px}
 
   /* ---------------- switcher ---------------- */
@@ -114,26 +127,46 @@
     background:#07080c;border:1px solid #2c3342;border-radius:99px;padding:4px;box-shadow:0 10px 30px rgba(0,0,0,.5);z-index:40}
   #sw button{background:none;border:0;color:var(--text);font-size:16px;padding:4px 10px;border-radius:50%;cursor:pointer}
   #sw button:hover{background:var(--row2)}
-  #sw .lab{min-width:230px;text-align:center;font-size:12px;color:var(--dim)}
+  #sw .lab{min-width:235px;text-align:center;font-size:12px;color:var(--dim)}
   #sw .lab b{color:var(--text)}
   #sw .sep{width:1px;height:18px;background:var(--line);margin:0 4px}
   #sw .treebtn{font-size:12px;padding:4px 10px;border-radius:99px;color:var(--dim)}
-  #sw .treebtn.on{color:var(--accent)}
+  #sw .treebtn.on,.sw .treebtn.sel{color:var(--accent-hi)}
 
-  /* ---------------- settings-tree panel ---------------- */
-  #tree{position:fixed;right:0;top:0;bottom:0;width:520px;max-width:92vw;background:#0e1117;border-left:1px solid var(--line);
+  /* ---------------- side panels: settings tree + brand ---------------- */
+  .sidepanel{position:fixed;right:0;top:0;bottom:0;width:520px;max-width:92vw;background:#0d0f15;border-left:1px solid var(--line);
     box-shadow:-20px 0 60px rgba(0,0,0,.5);z-index:50;display:none;overflow:auto;padding:20px}
-  #tree.open{display:block}
-  #tree h2{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:var(--faint);margin:0 0 4px}
-  #tree p.sub{color:var(--faint);font-size:12px;margin:0 0 18px}
+  .sidepanel.open{display:block}
+  .sidepanel h2{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:var(--faint);margin:0 0 4px}
+  .sidepanel p.sub{color:var(--faint);font-size:12px;margin:0 0 18px}
   table{width:100%;border-collapse:collapse;font-size:12.5px}
   th{text-align:left;color:var(--faint);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.08em;padding:6px 8px;border-bottom:1px solid var(--line)}
   td{padding:8px;border-bottom:1px solid #1c2230;vertical-align:top}
-  td.key{font-family:var(--mono);font-size:11.5px;color:var(--accent)}
+  td.key{font-family:var(--mono);font-size:11.5px;color:var(--accent-hi)}
   td.ctl{color:var(--dim)}
   td.str{font-family:var(--mono);font-size:11px;color:var(--faint)}
   td.str.keychain{color:var(--warn)}
   tr.g td:first-child{color:var(--faint);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.1em;padding-top:14px;border-bottom:0}
+
+  .bsec{border:1px solid var(--line);border-radius:12px;background:var(--panel2);margin-bottom:14px;overflow:hidden}
+  .bsec .bt{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--faint);font-weight:650;padding:10px 14px;border-bottom:1px solid var(--line)}
+  .bsec .bb{padding:14px}
+  .swatches{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  .sw .i{height:42px;border-radius:8px;border:1px solid var(--line)}
+  .sw .n{font-size:11px;margin-top:5px;font-weight:500}
+  .sw .c{font-family:var(--mono);font-size:10px;color:var(--faint)}
+  .spec .disp{font-size:34px;font-weight:850;letter-spacing:.02em}
+  .spec .disp i{color:var(--accent);font-style:normal}
+  .spec .ui{font-size:13px;margin-top:10px}
+  .spec .ui b{color:var(--accent-hi)}
+  .spec .caps{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:650;color:var(--faint);margin-top:8px}
+  .spec .mono{font-family:var(--mono);font-size:12px;color:var(--accent-hi)}
+  .markline{display:flex;align-items:center;gap:14px}
+  .markline .big .logo{font-size:26px}
+  .markline .big .bars{height:22px;gap:3px}
+  .markline .big .bars i{width:5px;border-radius:2px}
+  .callout{font-size:12px;color:var(--faint);border-left:2px solid var(--accent);padding:2px 0 2px 10px;margin-top:10px}
+  .callout b{color:var(--text)}
 </style>
 </head>
 <body>
@@ -146,26 +179,47 @@
   <button id="next" title="Next variant">▶</button>
   <span class="sep"></span>
   <button class="treebtn" id="treebtn">▤ Settings tree</button>
+  <button class="treebtn" id="brandbtn">▤ Brand</button>
 </div>
 
-<div id="tree">
+<!-- settings tree panel -->
+<div class="sidepanel" id="tree">
   <h2>Voxa settings inventory → settings tree</h2>
-  <p class="sub">One row per control: <b>key</b> = storage key in the plain settings file (<span class="str">appDataDir/config.json</span>), unless <span class="str keychain">keychain</span>. Derived live from the same data the three variants render.</p>
+  <p class="sub">One row per control: key = storage key in the plain settings file (<span class="str">appDataDir/config.json</span>), unless <span class="str keychain">keychain</span>. Activation rows reflect the mode scheme currently being compared.</p>
   <table><thead><tr><th>Setting</th><th>Control</th><th>Storage key</th></tr></thead><tbody id="treebody"></tbody></table>
+</div>
+
+<!-- brand panel -->
+<div class="sidepanel" id="brand">
+  <h2>Voxa brand — red &amp; black</h2>
+  <p class="sub">Taste call made by the owner on this ticket. Draft identity to react to; it feeds the spec's brand chapter and restyles the pill (#8), so it lives here rather than only in the settings window.</p>
+
+  <div class="bsec"><div class="bt">Palette</div><div class="bb"><div class="swatches" id="swatches"></div></div></div>
+
+  <div class="bsec"><div class="bt">Typography</div><div class="bb spec">
+    <div class="disp">Vo<i>x</i>a</div>
+    <div class="ui"><b>UI</b> — system stack (−apple-system / Segoe UI / Roboto), 13 px body, −0.01em. Zero payload, sharp on every OS.</div>
+    <div class="caps">Section labels — 11 px · +.14em · 650 · caps</div>
+    <div class="mono">Keys &amp; logs — ui-monospace, 12 px</div>
+  </div></div>
+
+  <div class="bsec"><div class="bt">Mark</div><div class="bb">
+    <div class="markline"><div class="big logo"><span class="bars"><i style="height:9px"></i><i style="height:16px"></i><i style="height:12px"></i><i style="height:22px"></i><i style="height:15px"></i></span>VOXA</div>
+    <span class="badge brand">bar motif = the pill's level bars</span></div>
+    <div class="callout"><b>Red is also the pill's error tint.</b> Proposal: brand red lives in marks, active states &amp; accent; errors dim the pill grey with a faint red cast (kept from #8). So red never reads as "boom", only as "this is Voxa".</div>
+  </div></div>
 </div>
 
 <script>
 /* ==================== settings inventory (single source of truth) ==================== */
 const GROUPS = ['General','Activation','Microphone','Model','Cleanup','Advanced'];
-const TREE = [
+const BASE = [
   {g:'General',   key:'app.launch_at_login', label:'Launch at login', control:'toggle', on:true,  note:'Start Voxa quietly when you log in. First-run default off.'},
-  {g:'General',   key:'app.theme',           label:'Theme',           control:'seg', options:['System','Light','Dark'], value:'System', note:'Applies to the pill and this window.'},
+  {g:'General',   key:'app.theme',           label:'Theme',           control:'seg', options:['Dark','Light','System'], value:'Dark', note:'Dark is the brand default; light is a courtesy.'},
   {g:'General',   key:'app.language',        label:'Language',        control:'locked', value:'English (US)', note:'v1 dictation is English-only. Non-English cleanup is a follow-up; the slot stays.'},
   {g:'General',   key:'app.last_update_check', label:'Updates',       control:'info', note:'v1 checks manually (Button → GitHub Releases). Auto-update / signing: v1.x.'},
-  {g:'Activation',key:'activation.mode',     label:'Activation mode', control:'seg', options:['Hold-to-talk','Hands-free'], value:'Hold-to-talk', note:'Hold:halt vs hold:rest — one clip per activation either way.'},
-  {g:'Activation',key:'activation.hotkey',   label:'Global hotkey',   control:'hotkey', value:'Ctrl+Win+B', note:'Windows/macOS/X11. Wayland: no global key — tray/pill click instead (note shows).'},
   {g:'Microphone',key:'mic.device',          label:'Input device',    control:'select', options:['Default microphone','Microphone (USB Audio)','Internal Microphone'], value:'Default microphone', note:'Blank = OS default. Churn/resample handled on a worker thread.'},
-  {g:'Microphone',key:'mic.levels',          label:'Input level',     control:'meter', note:'/-60..0 dBFS, gate −55/−70. Silence should sit still; sustained flat zero = mic permission? deep-link here.'},
+  {g:'Microphone',key:'mic.levels',          label:'Input level',     control:'meter', note:'/-60..0 dBFS meter; silence sits still. If it stays flat at zero, the mic is blocked — Settings deep-link.'},
   {g:'Model',     key:'model.id',            label:'Whisper model',   control:'model', value:'small.en', note:'Downloaded once, cached offline. Missing model auto-downloads on first clip.'},
   {g:'Cleanup',   key:'cleanup.enabled',     label:'Clean up transcripts', control:'toggle', on:true, note:'External polish of the raw transcript. Off ⇒ insert raw as-is.'},
   {g:'Cleanup',   key:'cleanup.tone',        label:'Tone preset',     control:'seg', options:['Plain','Casual','Formal','Email'], value:'Plain', note:'Four named cleanup styles; identical engine, different system prompt.'},
@@ -182,7 +236,11 @@ const MODELS = [
 ];
 
 /* ==================== state & shared pieces ==================== */
-const S = { hotkey:'Ctrl+Win+B', capture:false, meter:0, meterOn:false, search:'', tierCol:{1:true,2:true,3:true}, key:'small.en', tree:false };
+const S = {
+  hotkeys:{hold:'Ctrl+Win+B', toggle:'Ctrl+Win+H'},
+  capture:null, modeScheme:'two', meter:0, meterOn:false, key:'small.en',
+  tree:false, brand:false
+};
 
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 
@@ -201,9 +259,29 @@ function selectCtl(entry){
   const opts = entry.options.map(o=>`<option ${o===entry.value?'selected':''}>${esc(o)}</option>`).join('');
   return row(`<select data-ctl="select">${opts}</select>`, entry.label, entry.note);
 }
-function hotkey(entry){
-  const note = (entry.key==='activation.hotkey') ? 'Wayland: no global key — tray/pill click.' : entry.note;
-  return row(`<button class="kbtn" data-ctl="hotkey" id="hkbtn">${esc(S.hotkey)}</button>`, entry.label, note);
+function hotkeyRow(label, slot, note){
+  return row(`<button class="kbtn" data-ctl="hotkey" data-slot="${slot}" id="hk-${slot}">${esc(S.hotkeys[slot]||'Press to set')}</button>`, label, note);
+}
+function locked2(label, note){
+  return row(`<span class="badge brand">double-tap</span>`, label, note);
+}
+function modeScheme(){
+  return row(`<div class="seg">
+      <button class="${S.modeScheme==='two'?'on':''}" data-ctl="scheme" data-scheme="two">Two hotkeys</button>
+      <button class="${S.modeScheme==='wispr'?'on':''}" data-ctl="scheme" data-scheme="wispr">One key · double-tap</button>
+    </div>`, 'Mode scheme', 'Prototype-only — compares the two candidates so we can pick v1. Not a user setting.');
+}
+function activationRows(){
+  const rows = [modeScheme()];
+  if(S.modeScheme==='two'){
+    rows.push(hotkeyRow('Hotkey — hold-to-talk','hold','Hold = record a clip; release → process. Both at once with hands-free.'));
+    rows.push(hotkeyRow('Hotkey — hands-free toggle','toggle','Tap to start, tap to stop; whole period = one clip.'));
+  } else {
+    rows.push(hotkeyRow('Hotkey — talk','hold','Press once for hold-to-talk; release → process.'));
+    rows.push(locked2('Hands-free — same key','Double-tap the hotkey toggles hands-free on/off.'));
+  }
+  rows.push(row(`<span class="badge">1 clip per activation</span>`, 'Session contract', 'Hold-release XOR toggle-on/off — each activation is one clip either way.'));
+  return rows.join('');
 }
 function keyInput(){
   return row(`
@@ -227,9 +305,8 @@ function models(){
       <span style="color:var(--faint);font-size:12px;margin-left:auto">${m.speed}</span>
     </label>`;
   }).join('');
-  const sel = MODELS.find(m=>m.id===S.key);
-  const status = sel
-    ? (S.key==='small.en' ? '<span class="badge ok" id="modelstatus">Downloaded · 465 MB</span>' : '<span class="badge" id="modelstatus">Not installed</span>')
+  const status = S.key==='small.en'
+    ? '<span class="badge ok" id="modelstatus">Downloaded · 465 MB</span>'
     : '<span class="badge" id="modelstatus">Not installed</span>';
   return row(`${opts}<div style="display:flex;width:100%;justify-content:flex-end">${status}<button class="link" data-ctl="dl">Download now</button></div>`, 'Whisper model', 'Model size vs memory vs latency. First download: a few minutes, progress shows here and on the pill; offline after.');
 }
@@ -247,12 +324,12 @@ function info(entry){
 }
 
 function rowsFor(group){
-  return TREE.filter(e=>e.g===group).map(e=>{
+  if(group==='Activation') return activationRows();
+  return BASE.filter(e=>e.g===group).map(e=>{
     switch(e.control){
       case 'toggle': return toggle(e);
       case 'seg':    return seg(e);
       case 'select': return selectCtl(e);
-      case 'hotkey': return hotkey(e);
       case 'key':    return keyInput();
       case 'meter':  return meter();
       case 'model':  return models();
@@ -263,37 +340,42 @@ function rowsFor(group){
   }).join('');
 }
 
-/* ==================== variant A — native sidebar preferences ==================== */
+/* ==================== variant A — native sidebar preferences (winner direction) ==================== */
 const A_ICONS = {General:'⚙',Activation:'⌨',Microphone:'🎙',Model:'📦',Cleanup:'✨',Advanced:'🧰'};
 function variantA(){
   S.active='General';
   return `<div class="win" id="vA">
-    <div class="titlebar"><div class="dot" style="background:#ff5f57"></div><div class="dot" style="background:#febc2e"></div><div class="dot" style="background:#28c840"></div>
-      <div class="name">Voxa Settings</div><div class="sub">v0.1.0</div></div>
+    <div class="titlebar">
+      <div class="logo"><span class="bars"><i style="height:6px"></i><i style="height:11px"></i><i style="height:8px"></i><i style="height:14px"></i><i style="height:10px"></i></span>VOXA</div>
+      <div class="name">Settings</div><div class="sub">v0.1.0</div>
+    </div>
     <div style="display:flex">
       <nav>
-        <div class="owner">Amanat<br><span style="font-size:11px">belongs to you, stays on your machine</span></div>
+        <div class="owner"><b>Amanat</b><br><span style="font-size:11px">belongs to you · stays on your machine</span></div>
         ${GROUPS.map(g=>`<div class="navrow" data-nav="${g}" data-ctl="nav"><span class="ic">${A_ICONS[g]}</span>${g}</div>`).join('')}
       </nav>
       <div class="pane" id="paneA">
         <h2 class="sec" id="paneATitle">General</h2>
         <div class="rows" id="paneARows">${rowsFor('General')}</div>
+        <div class="scheme-hint" id="paneAFoot" style="display:none"></div>
         <div class="foot"><button class="primary">Done</button></div>
       </div>
     </div>
   </div>`;
 }
 
-/* ==================== variant B — single scroll + search cards ==================== */
+/* ==================== variant B: single scroll + search ==================== */
 function variantB(){
   return `<div class="win" id="vB">
-    <div class="titlebar"><div class="name">Voxa</div><div class="ttr">Settings</div><div class="sub">Everything on one page — type to filter</div></div>
+    <div class="titlebar">
+      <div class="logo"><span class="bars"><i style="height:6px"></i><i style="height:11px"></i><i style="height:8px"></i><i style="height:14px"></i><i style="height:10px"></i></span>VOXA</div>
+      <div class="ttr">Settings</div><div class="sub">everything on one page — type to filter</div></div>
     <div class="head">
       <div class="search"><span style="color:var(--faint)">⌕</span><input id="searchInput" placeholder="Search settings — try “hotkey” or “model”" autocomplete="off"><span class="k">/</span></div>
     </div>
     <div class="body">${GROUPS.map(g=>`
       <div class="card" data-card="${g}">
-        <div class="chead"><span class="ic">${A_ICONS[g]}</span><span class="t">${g}</span><span class="cnt">${TREE.filter(e=>e.g===g).length}</span></div>
+        <div class="chead"><span class="ic">${A_ICONS[g]}</span><span class="t">${g}</span><span class="cnt">${g==='Activation'?2:BASE.filter(e=>e.g===g).length}</span></div>
         ${rowsFor(g)}
       </div>`).join('')}
       <div class="bottom">Nothing here is saved — this is a feel-the-shape prototype.</div>
@@ -301,18 +383,17 @@ function variantB(){
   </div>`;
 }
 
-/* ==================== variant C — tiered, progressive disclosure ==================== */
+/* ==================== variant C: tiered, progressive disclosure ==================== */
 function variantC(){
   const essentials = ['activation.hotkey','activation.mode','cleanup.enabled','groq_api_key'];
   const power     = ['mic.device','mic.levels','model.id','cleanup.tone','app.theme','app.launch_at_login'];
   const trouble   = ['app.language','app.last_update_check','app.reveal_logs','app.reset'];
-  const tier = (title, desc, keys, collapsed, hl)=>{
-    const rows = TREE.filter(e=>keys.includes(e.key)).map(e=>{
+  const tier = (title, desc, keys, collapsed, hl, isActivation)=>{
+    const rows = isActivation ? activationRows() : BASE.filter(e=>keys.includes(e.key)).map(e=>{
       switch(e.control){
         case 'toggle': return toggle(e);
         case 'seg':    return seg(e);
         case 'select': return selectCtl(e);
-        case 'hotkey': return hotkey(e);
         case 'key':    return keyInput();
         case 'meter':  return meter();
         case 'model':  return models();
@@ -327,29 +408,31 @@ function variantC(){
     </div>`;
   };
   return `<div class="win" id="vC">
-    <div class="titlebar"><div class="name">Voxa</div><div class="sub">dictation · local by default</div></div>
+    <div class="titlebar">
+      <div class="logo"><span class="bars"><i style="height:6px"></i><i style="height:11px"></i><i style="height:8px"></i><i style="height:14px"></i><i style="height:10px"></i></span>VOXA</div>
+      <div class="sub">dictation · local by default</div></div>
     <div class="status">
       <div class="chip"><span class="dot ok"></span>Microphone · working</div>
       <div class="chip"><span class="dot ok"></span>Model · small.en installed</div>
       <div class="chip"><span class="dot"></span>Cleanup · key missing</div>
-      <div class="chip"><span class="dot"></span>Hotkey · Ctrl+Win+B</div>
+      <div class="chip"><span class="dot brand"></span>Hotkey · ${S.modeScheme==='two'?S.hotkeys.hold+' / '+S.hotkeys.toggle:'Ctrl+Win+B · double-tap'}</div>
     </div>
     <div class="body">
-      ${tier('Essentials','your daily three', essentials, false, true)}
-      ${tier('Power user','shape the engines', power, false)}
-      ${tier('Troubleshooting','get unstuck', trouble, true)}
-      <div class="footer"><span>Voxa 0.1.0 · settings live in your app data, cleaned in your keychain</span><span>23 KB of config</span></div>
+      ${tier('Essentials','your daily three', essentials, false, true, true)}
+      ${tier('Power user','shape the engines', power, false, false)}
+      ${tier('Troubleshooting','get unstuck', trouble, true, false)}
+      <div class="footer"><span>Voxa 0.2.0 test-build</span><span>settings in your app data · key in your keychain</span></div>
     </div>
   </div>`;
 }
 
 /* ==================== switcher ==================== */
 const VARIANTS = [
-  ['A','Native sidebar preferences'],
+  ['A','Native sidebar preferences — winner direction'],
   ['B','Single scroll + search cards'],
   ['C','Tiered: Essentials → Power → Troubleshoot'],
 ];
-let v = new URLSearchParams(location.search).get('variant') || 'B';
+let v = new URLSearchParams(location.search).get('variant') || 'A';
 
 function render(){
   S.active='General';
@@ -358,16 +441,20 @@ function render(){
   else if(v==='B') stage.innerHTML = variantB();
   else stage.innerHTML = variantC();
   bind();
-  document.getElementById('lab').innerHTML = `<b>${v}</b> · ${VARIANTS.find(x=>x[0]===v)[1]} — use ◀ ▶ or ← →`;
+  document.getElementById('lab').innerHTML = `<b>${v}</b> · ${VARIANTS.find(x=>x[0]===v)[1]} — ◀ ▶ or ← →`;
+  syncPanelBtns();
 }
 function setV(nv){
   v = nv;
   history.replaceState(null,'','?variant='+v);
   render();
 }
+function syncPanelBtns(){
+  document.getElementById('treebtn').classList.toggle('on',S.tree);
+  document.getElementById('brandbtn').classList.toggle('on',S.brand);
+}
 
 /* ==================== behavior ==================== */
-let hkCapture = false;
 function bind(){
   document.querySelectorAll('[data-ctl]').forEach(el=>{
     const ctl = el.dataset.ctl;
@@ -375,8 +462,14 @@ function bind(){
     if(ctl==='nav'){
       el.addEventListener('click',()=>{
         document.querySelectorAll('[data-nav]').forEach(n=>n.classList.toggle('on',n===el));
-        document.getElementById('paneATitle').textContent = el.dataset.nav;
-        document.getElementById('paneARows').innerHTML = rowsFor(el.dataset.nav);
+        const g = el.dataset.nav;
+        document.getElementById('paneATitle').textContent = g;
+        document.getElementById('paneARows').innerHTML = rowsFor(g);
+        const foot = document.getElementById('paneAFoot');
+        if(g==='Activation'){
+          foot.style.display='flex';
+          foot.innerHTML = '<b>v1 ships ONE scheme product-wide</b> — this toggle only compares the two candidates. Both modes stay usable at the same time either way.';
+        } else foot.style.display='none';
       });
     }
 
@@ -392,10 +485,16 @@ function bind(){
         el.classList.add('on');
       });
     }
+    if(ctl==='scheme'){
+      el.addEventListener('click',()=>{
+        S.modeScheme = el.dataset.scheme;
+        render();
+      });
+    }
     if(ctl==='hotkey'){
       el.addEventListener('click',()=>{
-        el.classList.add('cap'); el.textContent = 'Press any key…';
-        hkCapture = true;
+        S.capture = el.dataset.slot;
+        el.classList.add('cap'); el.textContent = 'Press keys…';
       });
     }
     if(ctl==='key'){ /* nothing on typing — prototype */ }
@@ -425,7 +524,6 @@ function bind(){
     if(ctl==='reset') el.addEventListener('click',()=>{ if(confirm('Reset all settings? This is a prototype confirm.')) el.textContent='✓ Reset (keychain key untouched)'; });
   });
 
-  // variant B search
   const si = document.getElementById('searchInput');
   if(si){
     si.addEventListener('input',()=>{
@@ -442,9 +540,16 @@ function bind(){
   }
 }
 document.addEventListener('keydown',e=>{
-  if(hkCapture){ hkCapture=false; S.hotkey = e.key.length===1 ? 'Ctrl+Win+'+e.key.toUpperCase() : (e.key==='Control'?'Ctrl':e.key);
-    const b=document.getElementById('hkbtn'); if(b){ b.textContent=S.hotkey; b.classList.remove('cap'); }
-    return; }
+  if(S.capture){
+    const slot=S.capture; S.capture=null;
+    let display = e.key.length===1 ? 'Ctrl+Win+'+e.key.toUpperCase()
+      : e.key==='Control' ? 'Ctrl' : e.key===' ' ? 'Ctrl+Win+Space' : e.key;
+    S.hotkeys[slot]=display;
+    const b=document.getElementById('hk-'+slot);
+    if(b){ b.textContent=display; b.classList.remove('cap'); }
+    if(v==='C') render();
+    return;
+  }
   const t=e.target;
   if(t && (t.tagName==='INPUT'||t.tagName==='SELECT'||t.tagName==='TEXTAREA'||t.isContentEditable)) return;
   if(e.key==='ArrowLeft'){ setV(VARIANTS[( (VARIANTS.findIndex(x=>x[0]===v)-1+VARIANTS.length) % VARIANTS.length)][0]); }
@@ -455,19 +560,41 @@ document.getElementById('next').addEventListener('click',()=>setV(VARIANTS[(VARI
 
 /* ==================== settings tree panel ==================== */
 document.getElementById('treebtn').addEventListener('click',()=>{
-  const tr=document.getElementById('tree'), btn=document.getElementById('treebtn');
-  const open=!tr.classList.contains('open');
-  tr.classList.toggle('open',open); btn.classList.toggle('on',open);
+  S.tree=!S.tree; document.getElementById('tree').classList.toggle('open',S.tree); syncPanelBtns();
+});
+document.getElementById('brandbtn').addEventListener('click',()=>{
+  S.brand=!S.brand; document.getElementById('brand').classList.toggle('open',S.brand); syncPanelBtns();
 });
 (function buildTree(){
   const tb=document.getElementById('treebody');
   tb.innerHTML = GROUPS.map(g=>{
-const rows = TREE.filter(e=>e.g===g).map(e=>{
-      const storage = e.control==='key' ? '<span class="str keychain">keychain · groq_api_key</span>' : `<span class="str">config.json → ${e.key}</span>`;
-      return `<tr><td><b>${e.label}</b></td><td class="ctl">${e.control}</td><td>${storage}</td></tr>`;
-    }).join('');
+    let rows;
+    if(g==='Activation'){
+      rows = S.modeScheme==='two'
+        ? `<tr><td><b>Hotkey — hold-to-talk</b></td><td class="ctl">hotkey (click → press keys)</td><td><span class="str">config.json → activation.hotkey_hold</span></td></tr>
+           <tr><td><b>Hotkey — hands-free toggle</b></td><td class="ctl">hotkey (click → press keys)</td><td><span class="str">config.json → activation.hotkey_toggle</span></td></tr>
+           <tr><td><b>Mode scheme</b></td><td class="ctl">fixed product decision</td><td><span class="str">two hotkeys, both live</span></td></tr>`
+        : `<tr><td><b>Hotkey — talk</b></td><td class="ctl">hotkey (click → press keys)</td><td><span class="str">config.json → activation.hotkey</span></td></tr>
+           <tr><td><b>Hands-free — same key</b></td><td class="ctl">double-tap semantics</td><td><span class="str">config.json → activation.scheme = "double-tap"</span></td></tr>`;
+    } else {
+      rows = BASE.filter(e=>e.g===g).map(e=>{
+        const storage = e.control==='key' ? '<span class="str keychain">keychain · groq_api_key</span>' : `<span class="str">config.json → ${e.key}</span>`;
+        return `<tr><td><b>${e.label}</b></td><td class="ctl">${e.control}</td><td>${storage}</td></tr>`;
+      }).join('');
+    }
     return `<tr class="g"><td colspan="3">${g}</td></tr>${rows}`;
   }).join('');
+})();
+
+/* ==================== brand panel ==================== */
+(function buildBrand(){
+  const SW = [
+    ['Spider Black','#0a0b0f'],['Carbon','#12141a'],['Graphite','#1d212c'],
+    ['Ash','#98a1b3'],['Paper','#eceef4'],
+    ['Voxa Red','#ec3b33'],['Ember','#ff5c54'],['Keyboard Dark','#0d0f15']
+  ];
+  document.getElementById('swatches').innerHTML = SW.map(s=>
+    `<div class="sw"><div class="i" style="background:${s[1]};${s[1]==='#eceef4'?'outline:1px solid var(--line)':''}"></div><div class="n">${s[0]}</div><div class="c">${s[1]}</div></div>`).join('');
 })();
 
 render();
