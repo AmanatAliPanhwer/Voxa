@@ -16,10 +16,17 @@
   bubble ends the session, which processes the clip — there is no cancel, per ADR-0001).
   The hotkey simulation is the ADR-0003 arbiter at prototype fidelity (150 ms tap/hold,
   300 ms double-tap window, lock-in on release+repress inside the window).
-  Three structural variants, switchable with ?variant=A|B|C (or the top bar):
-    A · Drop     — separate 24px filled-red disc, 6px gap LEFT of the pill, its own clickable window.
-    B · Sputnik  — 26px ring-outline dot straddling the pill's LEFT edge; reads as one attached unit.
-    C · Rail     — 26px red squircle flush against the pill's RIGHT edge; one continuous bar.
+  Decisions sealed by the owner (session): WINNER = A's geometry (24px disc, 6px gap left of the
+  pill, its own clickable window) + B's resting look (quiet red ring, fills red with white stop glyph
+  on hover); ONE Stop bubble only (no cancel, ADR-0001; insert-last rides hotkey/tray per #10);
+  tooltip = title "Stop" only, no hint line (identical per OS); hit = bubble + 4px halo, the pill
+  strip stays fully click-through, a hover-halo click still counts as Stop; mirror the bubble to the
+  inner side within 12px of a screen edge; Wayland = the tray stays the control path, the bubble is
+  pure presentation. Three exploratory variants remain switchable with ?variant=A|B|C (A now renders
+  the sealed winner; B and C stay as the rejected alternates):
+    A · Drop     — WINNER: 24px disc, ring-red at rest (fills red on hover), 6px gap LEFT, own window.
+    B · Sputnik  — rejected: ring-outline dot straddling the pill's left edge (reads as attached).
+    C · Rail     — rejected: red squircle flush against the pill's right edge (one continuous bar).
   Scaffolding below (top bar, slider, telemetry) is NOT product UI.
   Run: open this file in a browser. Hold Space = hold-to-talk; quick double-tap = hands-free toggle;
   release + repress during a hold = lock-in (bubble appears mid-session); click the bubble = stop
@@ -115,11 +122,13 @@
     transform:translate(-50%,-50%);
   }
 
-  /* A · Drop — filled red disc, 24px, gap 6px, its own window */
+  /* A · WINNER — 24px disc, mit 6px gap, its own window; resting = quiet red ring,
+     hover = filled red with white stop glyph (B's look on A's geometry) */
   .bA { width:24px; height:24px; border-radius:50%;
-        background:var(--red); color:#fff;
-        box-shadow:0 4px 14px -4px rgba(236,59,51,.55), 0 0 0 1px rgba(236,59,51,.35); }
-  .bA:hover { background:var(--ember); }
+        background:transparent; color:var(--red);
+        border:2px solid var(--red);
+        box-shadow:0 4px 14px -4px rgba(236,59,51,.4); }
+  .bA:hover { background:var(--red); color:#fff; border-color:var(--red); }
 
   /* B · Sputnik — ring-outline dot straddling the pill's left edge */
   .bB { width:26px; height:26px; border-radius:50%;
@@ -142,7 +151,6 @@
     box-shadow:0 10px 30px -12px rgba(0,0,0,.6);
     opacity:0; transition:opacity .08s ease;
   }
-  #tip .k { font-family:var(--mono); font-size:10.5px; color:var(--faint); margin-top:1px; }
 
   /* ---------- scaffolding (NOT product UI) ---------- */
   #rocket { position:fixed; top:0; left:0; right:0; z-index:40; min-height:50px;
@@ -191,7 +199,7 @@
   </div>
 </div>
 
-<div id="tip"><div id="tipT"></div><div class="k" id="tipK"></div></div>
+<div id="tip"><div id="tipT"></div></div>
 
 <div id="rocket">
   <div class="grp nav">
@@ -231,9 +239,9 @@ const ACOEF=1-Math.exp(-1/(0.045*60));
 const RCOEF=1-Math.exp(-1/(0.220*60));
 const SYLLABS=[0.55,0.95,0.7,1.0,0.62,0.85,0.5,0.9,0.4,0.75,1.0,0.66,0.82,0.58,0.92,0.68];
 const VARIANTS=[
-  {key:'A', name:'Drop',     cls:'bA', side:'L', desc:'filled red disc, 6px gap, its own window'},
-  {key:'B', name:'Sputnik',  cls:'bB', side:'L', desc:'ring outline straddling the pill\x27s left edge'},
-  {key:'C', name:'Rail',     cls:'bC', side:'R', desc:'red squircle flush on the pill\x27s right edge'},
+  {key:'A', name:'Drop',     cls:'bA', side:'L', desc:'WINNER — ring-red at rest, fills red on hover, 6px gap, own window'},
+  {key:'B', name:'Sputnik',  cls:'bB', side:'L', desc:'rejected — ring outline straddling the pill\x27s left edge'},
+  {key:'C', name:'Rail',     cls:'bC', side:'R', desc:'rejected — red squircle flush on the pill\x27s right edge'},
 ];
 const DOCKW=140, DOCKH=32, PILLINSET=3;
 
@@ -385,13 +393,11 @@ function placeDock(){
 }
 
 /* ------------- tooltip ------------- */
-const tip=document.getElementById('tip'), tipT=document.getElementById('tipT'), tipK=document.getElementById('tipK');
-const TIP_HINT='same as double-tap the hotkey';
+const tip=document.getElementById('tip'), tipT=document.getElementById('tipT');
 function showTip(){
   if(!bubble) return;
   const r=bubble.getBoundingClientRect();
-  tipT.textContent='Stop dictation';
-  tipK.textContent=variant.side==='L' && !(dockX<92) ? TIP_HINT : TIP_HINT;
+  tipT.textContent='Stop';
   tip.style.left=r.left+r.width/2+'px';
   tip.style.top=(r.top-12)+'px';
   tip.style.transform='translate(-50%,-100%)';
