@@ -156,6 +156,10 @@ impl Arbiter {
     pub fn is_hands_free(&self) -> bool {
         self.hands_free
     }
+
+    pub fn is_idle(&self) -> bool {
+        self.key == Key::Idle
+    }
 }
 
 pub struct Hotkeys {
@@ -172,6 +176,7 @@ impl Hotkeys {
     }
 
     pub fn key_down(&mut self, now: u64) {
+        let _ = self.inbox.try_send(Inbound::Arm);
         let events = self.arbiter.key_down(now);
         self.flush(events);
     }
@@ -183,7 +188,11 @@ impl Hotkeys {
 
     pub fn tick(&mut self, now: u64) {
         let events = self.arbiter.tick(now);
+        let empty = events.is_empty();
         self.flush(events);
+        if empty && !self.arbiter.is_hands_free() && self.arbiter.is_idle() {
+            let _ = self.inbox.try_send(Inbound::Disarm);
+        }
     }
 
     pub fn set_hands_free(&mut self, on: bool) {

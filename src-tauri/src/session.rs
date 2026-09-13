@@ -28,6 +28,8 @@ pub enum Inbound {
     StartHold,
     StopHold,
     ToggleHandsFree,
+    Arm,
+    Disarm,
 }
 
 pub trait Broadcast: Send {
@@ -46,8 +48,11 @@ pub enum Event {
 
 pub trait CaptureDevice: Send {
     fn start(&mut self) -> Result<(), ErrorInfo>;
+    fn promote(&mut self) -> Result<(), ErrorInfo>;
     fn stop(&mut self) -> Vec<f32>;
+    fn cancel(&mut self);
     fn levels(&mut self) -> Vec<f32>;
+    fn take_error(&mut self) -> Option<ErrorInfo>;
 }
 
 pub trait Transcriber: Send {
@@ -133,6 +138,18 @@ impl Session {
         }
     }
 
+    pub fn arm(&mut self) {
+        if self.state == State::Idle {
+            let _ = self.capture.start();
+        }
+    }
+
+    pub fn unarm(&mut self) {
+        if self.state == State::Idle {
+            self.capture.cancel();
+        }
+    }
+
     pub fn insert_last_result(&mut self) {
         let last = match self.store.last() {
             Some(entry) => entry.clone(),
@@ -154,6 +171,10 @@ impl Session {
 
     pub fn drain_levels(&mut self) {
         if self.state != State::Listening {
+            return;
+        }
+        if let Some(err) = self.capture.take_error() {
+            self.fail(err);
             return;
         }
         for level in self.capture.levels() {
@@ -179,7 +200,7 @@ impl Session {
         if self.state != State::Idle {
             return;
         }
-        match self.capture.start() {
+        match self.capture.promote() {
             Ok(()) => {
                 self.silent = false;
                 self.to(State::Listening);
@@ -268,16 +289,34 @@ mod tests {
         }
     }
 
+    #[derive(Default, Clone)]
+    struct CallCount {
+        start: usize,
+        promote: usize,
+        cancel: usize,
+    }
+
     #[derive(Default)]
     struct FakeCapture {
         pcm: Vec<f32>,
         start_ok: bool,
         levels_in: Vec<f32>,
         levels_out: Vec<f32>,
+        error: Option<ErrorInfo>,
+        calls: Arc<Mutex<CallCount>>,
     }
 
     impl CaptureDevice for FakeCapture {
         fn start(&mut self) -> Result<(), ErrorInfo> {
+            self.calls.lock().unwrap().start += 1;
+            if self.start_ok {
+                Ok(())
+            } else {
+                Err(ErrorInfo::new(ErrorKind::Capture, true, "no mic"))
+            }
+        }
+        fn promote(&mut self) -> Result<(), ErrorInfo> {
+            self.calls.lock().unwrap().promote += 1;
             if self.start_ok {
                 Ok(())
             } else {
@@ -287,8 +326,14 @@ mod tests {
         fn stop(&mut self) -> Vec<f32> {
             std::mem::take(&mut self.pcm)
         }
+        fn cancel(&mut self) {
+            self.calls.lock().unwrap().cancel += 1;
+        }
         fn levels(&mut self) -> Vec<f32> {
             self.levels_out.drain(..).collect()
+        }
+        fn take_error(&mut self) -> Option<ErrorInfo> {
+            self.error.take()
         }
     }
 
@@ -603,30 +648,67 @@ mod tests {
     }
 
     #[test]
-    fn levels_gate_emits_zero_once_then_stays_silent() {
-        let mut capture = FakeCapture {
+    fn arm_then_hold_promotes_capture() {
+        let calls = Arc::new(Mutex::new(CallCount::default()));
+        let capture = FakeCapture {
             start_ok: true,
+            calls: calls.clone(),
             ..Default::default()
         };
-        capture.levels_out = vec![0.4, 0.0, 0.0, 0.0];
-        let (mut s, events) = harness(capture, Ok("raw".into()), Ok(None));
+        let (mut s, _events) = harness(capture, Ok("raw".into()), Ok(None));
         s.apply(Activation::HoldBegan);
-        s.drain_levels();
-        let emitted: Vec<f32> = events
-            .lock()
-            .unwrap()
-            .iter()
-            .filter_map(|e| match e {
-                Event::Levels(l) => Some(*l),
-                _ => None,
-            })
-            .collect();
-        assert_eq!(emitted, vec![0.4, 0.0]);
-        s.drain_levels();
-        let after = events.lock().unwrap();
-        assert_eq!(
-            after.iter().filter(|e| matches!(e, Event::Levels(_))).count(),
-            2
-        );
+        let calls = calls.lock().unwrap();
+        assert_eq!(calls.start, 0, "hold path must promote, not start");
+        assert_eq!(calls.promote, 1);
+    }
+
+    #[test]
+    fn key_down_arm_starts_capture_and_hold_promotes_it() {
+        let calls = Arc::new(Mutex::new(CallCount::default()));
+        let capture = FakeCapture {
+            start_ok: true,
+            calls: calls.clone(),
+            ..Default::default()
+        };
+        let (mut s, events) = harness(capture, Ok("raw".into()), Ok(None));
+        s.arm();
+        s.apply(Activation::HoldBegan);
+        assert_eq!(s.state(), State::Listening);
+        let calls = calls.lock().unwrap();
+        assert_eq!(calls.start, 1);
+        assert_eq!(calls.promote, 1);
+    }
+
+    #[test]
+    fn unarm_cancels_capture_and_stays_idle() {
+        let calls = Arc::new(Mutex::new(CallCount::default()));
+        let capture = FakeCapture {
+            start_ok: true,
+            calls: calls.clone(),
+            ..Default::default()
+        };
+        let (mut s, events) = harness(capture, Ok("raw".into()), Ok(None));
+        s.arm();
+        s.unarm();
+        assert_eq!(s.state(), State::Idle);
+        assert_eq!(states(&events.lock().unwrap()), Vec::<State>::new());
+        assert_eq!(calls.lock().unwrap().cancel, 1);
+    }
+
+    #[test]
+    fn arm_failure_is_deferred_until_promote() {
+        let capture = FakeCapture {
+            start_ok: false,
+            ..Default::default()
+        };
+        let (mut s, events) = harness(capture, Ok("raw".into()), Ok(None));
+        s.arm();
+        assert_eq!(s.state(), State::Idle, "arm errors surface later");
+        s.apply(Activation::HoldBegan);
+        assert_eq!(s.state(), State::Error);
+        assert!(events.lock().unwrap().iter().any(|e| matches!(
+            e,
+            Event::Error(err) if err.kind == ErrorKind::Capture
+        )));
     }
 }

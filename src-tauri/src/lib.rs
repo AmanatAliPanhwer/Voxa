@@ -48,6 +48,8 @@ async fn session_loop(
                     Inbound::StartHold => session.start_hold(),
                     Inbound::StopHold => session.stop_hold(),
                     Inbound::ToggleHandsFree => session.toggle_hands_free(),
+                    Inbound::Arm => session.arm(),
+                    Inbound::Disarm => session.unarm(),
                 }
                 if session.state() == State::Done {
                     tokio::time::sleep(std::time::Duration::from_millis(450)).await;
@@ -97,7 +99,7 @@ pub fn run() {
                 Box::new(TauriBroadcast {
                     app: app_handle.clone(),
                 }),
-                Box::new(capture::StubCapture::default()),
+                Box::new(capture::CpalCapture::new(&cfg)),
                 Box::new(transcribe::StubTranscriber),
                 Box::new(cleanup::PassthroughCleaner),
                 Box::new(insert::NaiveInserter),
