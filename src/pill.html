@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Voxa</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: transparent; overflow: hidden; }
+    body { font: 13px/1.45 system-ui, sans-serif; user-select: none; -webkit-user-select: none; }
+    #pill {
+      position: absolute; inset: 3px;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,.75);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 14px;
+      opacity: 0;
+      transition: opacity .25s ease;
+    }
+    #pill.visible { opacity: 1; }
+    #pill.error { animation: greyPulse 2s ease-in-out infinite; border-color: rgba(251,113,133,.45); }
+    @keyframes greyPulse { 0%,100% { opacity:.55 } 50% { opacity:1 } }
+    #pill.flash { animation: insertFlash .45s ease; }
+    @keyframes insertFlash {
+      0%   { box-shadow: 0 0 0 0 rgba(255,255,255,.7), inset 0 0 0 0 rgba(255,255,255,.4); }
+      45%  { box-shadow: 0 0 0 14px rgba(255,255,255,0), inset 0 0 18px 0 rgba(255,255,255,.5); }
+      100% { box-shadow: 0 0 0 0 rgba(255,255,255,0), inset 0 0 0 0 rgba(255,255,255,0); }
+    }
+    #wave { display: none; align-items: center; justify-content: center; gap: 2px; height: 16px; }
+    #pill.listening #wave { display: flex; }
+    .bar { width: 2px; border-radius: 1px; background: white; height: 2px; }
+    #pill.error .bar { background: rgba(255,255,255,.55); }
+    #spinner { display: none; }
+    #pill.processing #spinner, #pill.inserting #spinner { display: flex; align-items: center; justify-content: center; }
+    .arc-spinner {
+      width: 12px; height: 12px;
+      border: 2px solid transparent; border-top-color: rgba(255,255,255,.85);
+      border-radius: 50%; animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div id="pill">
+    <div id="wave"></div>
+    <div id="spinner"><div class="arc-spinner"></div></div>
+  </div>
+  <script>
+    const ENVELOPE = [4,7,10,13,15,16,15,13,10,7,4,7];
+    const BARS = 12;
+    const pill = document.getElementById('pill');
+    const wave = document.getElementById('wave');
+    for (let i = 0; i < BARS; i++) {
+      const bar = document.createElement('div');
+      bar.className = 'bar';
+      wave.appendChild(bar);
+    }
+    const bars = Array.from(document.querySelectorAll('.bar'));
+    let visible = false;
+
+    function show() { if (!visible) { visible = true; pill.classList.add('visible'); } }
+    function hide() {
+      visible = false;
+      pill.classList.remove('visible', 'listening', 'processing', 'inserting', 'error', 'flash');
+      for (const bar of bars) bar.style.height = '2px';
+    }
+    function setLevel(level) {
+      const l = Math.max(0, Math.min(1, level));
+      for (let i = 0; i < BARS; i++) {
+        bars[i].style.height = Math.max(2, Math.round(ENVELOPE[i] * l)) + 'px';
+      }
+    }
+
+    const __TAURI__ = window.__TAURI__;
+    function listen(event, handler) { __TAURI__.event.listen(event, e => handler(e.payload)); }
+
+    listen('session:state', (state) => {
+      pill.classList.remove('listening', 'processing', 'inserting', 'error', 'flash');
+      if (state === 'idle') { hide(); return; }
+      show();
+      if (state === 'listening') {
+        pill.classList.add('listening');
+      } else if (state === 'processing' || state === 'inserting') {
+        pill.classList.add('processing');
+      } else if (state === 'error') {
+        pill.classList.add('error');
+      } else if (state === 'done') {
+        pill.classList.add('flash');
+        setTimeout(() => pill.classList.remove('flash'), 480);
+      }
+    });
+
+    listen('session:levels', (level) => {
+      if (pill.classList.contains('listening')) setLevel(level);
+    });
+
+    listen('session:error', () => {
+      pill.classList.remove('listening', 'processing', 'inserting');
+      pill.classList.add('error');
+    });
+  </script>
+</body>
+</html>
