@@ -14,7 +14,9 @@
     .mark { display: flex; gap: 3px; align-items: flex-end; height: 18px; }
     .mark i { width: 3px; background: #ec3b33; border-radius: 1px; }
     h1 { font-size: 14px; letter-spacing: .12em; text-transform: uppercase; color: #e7ecf5; font-weight: 600; }
-    p { color: #5b6377; font-size: 12px; }
+    p { color: #5b6377; font-size: 12px; margin: 0; }
+    #chord { color: #e7ecf5; font-family: ui-monospace, monospace; }
+    #status { color: #5b6377; font-size: 11px; }
   </style>
 </head>
 <body>
@@ -22,6 +24,59 @@
     <i style="height:6px"></i><i style="height:10px"></i><i style="height:13px"></i><i style="height:10px"></i><i style="height:6px"></i>
   </div>
   <h1>Voxa Settings</h1>
-  <p>The settings surface lands with ticket #25.</p>
+  <p>App-local key: <span id="chord">–</span></p>
+  <p id="status">The settings surface lands with ticket #25.</p>
+  <script>
+    const invoke = window.__TAURI__.core.invoke;
+
+    function parseChord(chord) {
+      const parts = chord.split("+").map((p) => p.trim());
+      const modifiers = {
+        ctrl: false, shift: false, alt: false, meta: false,
+      };
+      for (const part of parts) {
+        const lower = part.toLowerCase();
+        if (lower === "ctrl" || lower === "control") { modifiers.ctrl = true; continue; }
+        if (lower === "shift") { modifiers.shift = true; continue; }
+        if (lower === "alt" || lower === "option") { modifiers.alt = true; continue; }
+        if (lower === "meta" || lower === "cmd" || lower === "command" || lower === "super") {
+          modifiers.meta = true; continue;
+        }
+        modifiers.key = part;
+      }
+      return modifiers;
+    }
+
+    function matches(e, chord) {
+      return e.ctrlKey === chord.ctrl
+        && e.shiftKey === chord.shift
+        && e.altKey === chord.alt
+        && e.metaKey === chord.meta
+        && e.key === chord.key;
+    }
+
+    let chord = { ctrl: true, shift: true, meta: false, alt: false, key: " " };
+
+    window.addEventListener("keydown", (e) => {
+      if (e.repeat) return;
+      if (e.key !== chord.key) return;
+      if (!matches(e, chord)) return;
+      e.preventDefault();
+      invoke("hotkeys_local_event", { kind: "down" });
+    });
+
+    window.addEventListener("keyup", (e) => {
+      if (e.key !== chord.key) return;
+      invoke("hotkeys_local_event", { kind: "up" });
+    });
+
+    invoke("settings_get").then((config) => {
+      chord = parseChord(config.hotkey);
+      if (!chord.key) chord.key = " ";
+      document.getElementById("chord").textContent = config.hotkey;
+    }).catch(() => {
+      document.getElementById("chord").textContent = "Ctrl+Shift+Space";
+    });
+  </script>
 </body>
 </html>

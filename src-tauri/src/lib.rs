@@ -43,8 +43,11 @@ async fn session_loop(
             inbound = inbox.recv() => {
                 let Some(inbound) = inbound else { break };
                 match inbound {
-                    Inbound::Activation(activation) => session.apply(activation),
+                    Inbound::Activation(events) => session.apply_batch(&events),
                     Inbound::InsertLast => session.insert_last_result(),
+                    Inbound::StartHold => session.start_hold(),
+                    Inbound::StopHold => session.stop_hold(),
+                    Inbound::ToggleHandsFree => session.toggle_hands_free(),
                 }
                 if session.state() == State::Done {
                     tokio::time::sleep(std::time::Duration::from_millis(450)).await;
@@ -105,10 +108,15 @@ pub fn run() {
             });
 
             let config_lock = std::sync::Mutex::new(cfg.clone());
+            let hotkeys = std::sync::Arc::new(std::sync::Mutex::new(hotkeys::Hotkeys::new(
+                inbox_tx.clone(),
+            )));
+            hotkeys::spawn_ticker(hotkeys.clone());
             app.manage(AppState {
                 inbox: inbox_tx.clone(),
                 state_rx,
                 config: config_lock,
+                hotkeys,
             });
 
             let pill = WebviewWindowBuilder::new(
@@ -139,10 +147,26 @@ pub fn run() {
 
             let settings_item =
                 MenuItem::with_id(app, "open_settings", "Open Settings", true, None::<&str>)?;
+            let start_hold_item =
+                MenuItem::with_id(app, "start_hold", "Start Hold-to-Talk", true, None::<&str>)?;
+            let stop_hold_item =
+                MenuItem::with_id(app, "stop_hold", "Stop Hold-to-Talk", true, None::<&str>)?;
+            let toggle_free_item =
+                MenuItem::with_id(app, "toggle_hands_free", "Toggle Hands-Free", true, None::<&str>)?;
             let insert_item =
                 MenuItem::with_id(app, "insert_last", "Insert Last Result", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&settings_item, &insert_item, &quit_item])?;
+            let menu = Menu::with_items(
+                app,
+                &[
+                    &settings_item,
+                    &start_hold_item,
+                    &stop_hold_item,
+                    &toggle_free_item,
+                    &insert_item,
+                    &quit_item,
+                ],
+            )?;
             let _tray = tauri::tray::TrayIconBuilder::with_id("voxa-tray")
                 .icon(app.default_window_icon().expect("tray icon").clone())
                 .menu(&menu)
@@ -150,6 +174,24 @@ pub fn run() {
                 .on_menu_event(|app, event| match event.id().as_ref() {
                     "open_settings" => {
                         let _ = frontend::app_open_settings(app.clone());
+                    }
+                    "start_hold" => {
+                        let state = app.state::<AppState>();
+                        let _ = state.inbox.try_send(Inbound::StartHold);
+                    }
+                    "stop_hold" => {
+                        let state = app.state::<AppState>();
+                        let _ = state.inbox.try_send(Inbound::StopHold);
+                    }
+                    "toggle_hands_free" => {
+                        let state = app.state::<AppState>();
+                        let listening = *state.state_rx.borrow() == State::Listening;
+                        let _ = state.inbox.try_send(Inbound::ToggleHandsFree);
+                        state
+                            .hotkeys
+                            .lock()
+                            .unwrap_or_else(|poisoned| poisoned.into_inner())
+                            .set_hands_free(!listening);
                     }
                     "insert_last" => {
                         let _ = frontend::app_insert_last(app.clone());
@@ -159,7 +201,8 @@ pub fn run() {
                 })
                 .build(app)?;
 
-            if let Err(err) = hotkeys::start(&app_handle, &inbox_tx, &cfg.hotkey) {
+            let runner = app.state::<AppState>().hotkeys.clone();
+            if let Err(err) = hotkeys::register(&app_handle, &runner, &cfg.hotkey) {
                 eprintln!("hotkey registration failed (tray fallback): {err}");
             }
 
@@ -170,6 +213,8 @@ pub fn run() {
             frontend::app_open_settings,
             frontend::app_insert_last,
             frontend::app_quit,
+            frontend::hotkeys_local_event,
+            frontend::hotkeys_set_chord,
             frontend::settings_get,
             frontend::settings_apply,
             frontend::model_list,

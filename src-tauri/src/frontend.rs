@@ -8,6 +8,7 @@ pub struct AppState {
     pub inbox: tokio::sync::mpsc::Sender<Inbound>,
     pub state_rx: tokio::sync::watch::Receiver<SessionState>,
     pub config: std::sync::Mutex<Config>,
+    pub hotkeys: std::sync::Arc<std::sync::Mutex<crate::hotkeys::Hotkeys>>,
 }
 
 #[tauri::command]
@@ -37,6 +38,39 @@ pub fn app_insert_last(app: tauri::AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn app_quit(app: tauri::AppHandle) {
     app.exit(0);
+}
+
+#[tauri::command]
+pub fn hotkeys_local_event(
+    state: State<'_, AppState>,
+    kind: String,
+) -> Result<(), String> {
+    let now = crate::hotkeys::now_ms();
+    let mut runner = state
+        .hotkeys
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    match kind.as_str() {
+        "down" => {
+            runner.key_down(now);
+            Ok(())
+        }
+        "up" => {
+            runner.key_up(now);
+            Ok(())
+        }
+        _ => Err("unknown hotkey event".into()),
+    }
+}
+
+#[tauri::command]
+pub fn hotkeys_set_chord(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    chord: String,
+) -> Result<(), String> {
+    let runner = state.hotkeys.clone();
+    crate::hotkeys::set_chord(&app, &runner, &chord).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

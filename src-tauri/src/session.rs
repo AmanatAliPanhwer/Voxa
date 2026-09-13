@@ -21,10 +21,13 @@ pub enum Activation {
     ToggleOff,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Inbound {
-    Activation(Activation),
+    Activation(Vec<Activation>),
     InsertLast,
+    StartHold,
+    StopHold,
+    ToggleHandsFree,
 }
 
 pub trait Broadcast: Send {
@@ -101,6 +104,32 @@ impl Session {
         match activation {
             Activation::HoldBegan | Activation::ToggleOn => self.begin_listening(),
             Activation::HoldReleased | Activation::ToggleOff => self.end_listening(),
+        }
+    }
+
+    pub fn apply_batch(&mut self, events: &[Activation]) {
+        if events == [Activation::HoldReleased, Activation::ToggleOn] && self.state == State::Listening
+        {
+            return;
+        }
+        for activation in events {
+            self.apply(*activation);
+        }
+    }
+
+    pub fn start_hold(&mut self) {
+        self.apply(Activation::HoldBegan);
+    }
+
+    pub fn stop_hold(&mut self) {
+        self.apply(Activation::HoldReleased);
+    }
+
+    pub fn toggle_hands_free(&mut self) {
+        if self.state == State::Listening {
+            self.apply(Activation::ToggleOff);
+        } else {
+            self.apply(Activation::ToggleOn);
         }
     }
 
@@ -469,6 +498,54 @@ mod tests {
         assert_eq!(error.kind, ErrorKind::Insert);
         drop(events);
         assert_eq!(s.store.len(), 1);
+    }
+
+    #[test]
+    fn lock_in_stays_listening_and_never_splits_the_clip() {
+        let (mut s, events) = harness(
+            FakeCapture {
+                pcm: vec![0.1; 1600],
+                start_ok: true,
+                ..Default::default()
+            },
+            Ok("raw phrase".into()),
+            Ok(Some("Notes".into())),
+        );
+        s.apply(Activation::HoldBegan);
+        assert_eq!(s.state(), State::Listening);
+        s.apply_batch(&[Activation::HoldReleased, Activation::ToggleOn]);
+        assert_eq!(s.state(), State::Listening);
+        assert_eq!(states(&events.lock().unwrap()), vec![State::Listening]);
+        s.apply(Activation::ToggleOff);
+        assert_eq!(s.state(), State::Done);
+        assert_eq!(
+            states(&events.lock().unwrap()),
+            vec![
+                State::Listening,
+                State::Processing,
+                State::Inserting,
+                State::Done
+            ]
+        );
+    }
+
+    #[test]
+    fn tray_toggle_hands_free_starts_and_stops_listening() {
+        let (mut s, events) = harness(
+            FakeCapture {
+                pcm: vec![0.1; 1600],
+                start_ok: true,
+                ..Default::default()
+            },
+            Ok("raw".into()),
+            Ok(None),
+        );
+        s.toggle_hands_free();
+        assert_eq!(s.state(), State::Listening);
+        s.toggle_hands_free();
+        assert_eq!(s.state(), State::Done);
+        drop(events);
+        assert_eq!(s.store.last().unwrap().clean_text, "clean: raw");
     }
 
     #[test]
