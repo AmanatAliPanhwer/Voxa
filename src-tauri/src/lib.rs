@@ -5,6 +5,7 @@ mod error;
 mod frontend;
 mod hotkeys;
 mod insert;
+mod model;
 mod session;
 mod store;
 mod transcribe;
@@ -100,7 +101,14 @@ pub fn run() {
                     app: app_handle.clone(),
                 }),
                 Box::new(capture::CpalCapture::new(&cfg)),
-                Box::new(transcribe::StubTranscriber),
+                Box::new(transcribe::WhisperTranscriber::new(
+                    app_data.join("models"),
+                    cfg.model_id.clone(),
+                    cfg.compute_device.clone(),
+                    Box::new(TauriBroadcast {
+                        app: app_handle.clone(),
+                    }),
+                )),
                 Box::new(cleanup::PassthroughCleaner),
                 Box::new(insert::NaiveInserter),
                 Some(state_tx.clone()),
@@ -119,6 +127,7 @@ pub fn run() {
                 state_rx,
                 config: config_lock,
                 hotkeys,
+                models_dir: app_data.join("models"),
             });
 
             let pill = WebviewWindowBuilder::new(

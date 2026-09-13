@@ -1,4 +1,5 @@
 use serde::Serialize;
+use std::path::PathBuf;
 use tauri::{Emitter, Manager, State};
 
 use crate::config::Config;
@@ -9,6 +10,7 @@ pub struct AppState {
     pub state_rx: tokio::sync::watch::Receiver<SessionState>,
     pub config: std::sync::Mutex<Config>,
     pub hotkeys: std::sync::Arc<std::sync::Mutex<crate::hotkeys::Hotkeys>>,
+    pub models_dir: PathBuf,
 }
 
 #[tauri::command]
@@ -125,33 +127,16 @@ pub struct ModelInfo {
 }
 
 #[tauri::command]
-pub fn model_list() -> Vec<ModelInfo> {
-    vec![
-        ModelInfo {
-            id: "tiny.en".into(),
-            name: "Tiny (English)".into(),
-            size_mb: 75,
-            downloaded: false,
-        },
-        ModelInfo {
-            id: "base.en".into(),
-            name: "Base (English)".into(),
-            size_mb: 142,
-            downloaded: false,
-        },
-        ModelInfo {
-            id: "small.en".into(),
-            name: "Small (English)".into(),
-            size_mb: 466,
-            downloaded: false,
-        },
-        ModelInfo {
-            id: "medium.en".into(),
-            name: "Medium (English)".into(),
-            size_mb: 1530,
-            downloaded: false,
-        },
-    ]
+pub fn model_list(state: State<'_, AppState>) -> Vec<ModelInfo> {
+    crate::model::all()
+        .iter()
+        .map(|spec| ModelInfo {
+            id: spec.id.into(),
+            name: spec.name.into(),
+            size_mb: spec.size_mb as u32,
+            downloaded: crate::model::downloaded(&state.models_dir, spec),
+        })
+        .collect()
 }
 
 #[tauri::command]
