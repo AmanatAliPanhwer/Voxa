@@ -142,6 +142,25 @@ fn place_bubble(app: &tauri::AppHandle, bubble: &tauri::WebviewWindow) -> Result
     bubble.set_position(PhysicalPosition::new(x, y)).map_err(|e| e.to_string())
 }
 
+pub(crate) fn hide_bubble(app: &tauri::AppHandle) {
+    if let Some(bubble) = app.get_webview_window("bubble") {
+        let _ = bubble.hide();
+    }
+}
+
+fn set_bubble_visible(app: &tauri::AppHandle, visible: bool) {
+    let Some(bubble) = app.get_webview_window("bubble") else {
+        return;
+    };
+    if visible {
+        if place_bubble(app, &bubble).is_ok() {
+            let _ = bubble.show();
+        }
+        return;
+    }
+    let _ = bubble.hide();
+}
+
 fn reconcile_bubble(app: &tauri::AppHandle, armed: bool, listening: bool) {
     let Some(bubble) = app.get_webview_window("bubble") else {
         return;
@@ -151,13 +170,7 @@ fn reconcile_bubble(app: &tauri::AppHandle, armed: bool, listening: bool) {
     if want == is_visible {
         return;
     }
-    if want {
-        if place_bubble(app, &bubble).is_ok() {
-            let _ = bubble.show();
-        }
-    } else {
-        let _ = bubble.hide();
-    }
+    set_bubble_visible(app, want);
 }
 
 fn position_primary_bottom_center(

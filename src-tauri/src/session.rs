@@ -181,7 +181,8 @@ impl Session {
                     "Insertion failed",
                     format!("Press {} to insert the last result again", self.recovery_chord),
                 );
-                self.fail(err);
+                self.broadcasts.emit(Event::Error(err));
+                self.to(State::Idle);
             }
         }
     }
@@ -191,7 +192,8 @@ impl Session {
             return;
         }
         if let Some(err) = self.capture.take_error() {
-            self.fail(err);
+            self.broadcasts.emit(Event::Error(err));
+            self.to(State::Idle);
             return;
         }
         for level in self.capture.levels() {
@@ -229,7 +231,10 @@ impl Session {
                 self.silent = false;
                 self.to(State::Listening);
             }
-            Err(err) => self.fail(err),
+            Err(err) => {
+                self.broadcasts.emit(Event::Error(err));
+                self.to(State::Idle);
+            }
         }
     }
 
@@ -247,7 +252,8 @@ impl Session {
         let raw = match self.transcriber.transcribe(&pcm) {
             Ok(raw) => raw,
             Err(err) => {
-                self.fail(err);
+                self.broadcasts.emit(Event::Error(err));
+                self.to(State::Idle);
                 return;
             }
         };
@@ -268,7 +274,8 @@ impl Session {
                     "Insertion failed",
                     format!("Press {} to insert the last result again", self.recovery_chord),
                 );
-                self.fail(err);
+                self.broadcasts.emit(Event::Error(err));
+                self.to(State::Idle);
             }
         }
     }
@@ -479,7 +486,7 @@ mod tests {
     }
 
     #[test]
-    fn capture_failure_enters_error() {
+    fn capture_failure_returns_to_idle() {
         let (mut s, _events) = harness(
             FakeCapture {
                 start_ok: false,
@@ -489,7 +496,7 @@ mod tests {
             inserted(None),
         );
         s.apply(Activation::HoldBegan);
-        assert_eq!(s.state(), State::Error);
+        assert_eq!(s.state(), State::Idle);
     }
 
     #[test]
@@ -563,7 +570,7 @@ mod tests {
     }
 
     #[test]
-    fn transcribe_failure_enters_error_and_never_inserts() {
+    fn transcribe_failure_returns_to_idle() {
         let (mut s, events) = harness(
             FakeCapture {
                 pcm: vec![0.1; 1600],
@@ -575,16 +582,15 @@ mod tests {
         );
         s.apply(Activation::HoldBegan);
         s.apply(Activation::HoldReleased);
-        assert_eq!(s.state(), State::Error);
+        assert_eq!(s.state(), State::Idle);
         let events = events.lock().unwrap();
         assert!(events.iter().any(|e| matches!(
-            e,
-            Event::Error(err) if err.kind == ErrorKind::Transcribe
+            e, Event::Error(err) if err.kind == ErrorKind::Transcribe
         )));
     }
 
     #[test]
-    fn insert_failure_keeps_result_and_enters_error() {
+    fn insert_failure_keeps_result_and_returns_to_idle() {
         let (mut s, events) = harness(
             FakeCapture {
                 pcm: vec![0.1; 1600],
@@ -596,7 +602,7 @@ mod tests {
         );
         s.apply(Activation::HoldBegan);
         s.apply(Activation::HoldReleased);
-        assert_eq!(s.state(), State::Error);
+        assert_eq!(s.state(), State::Idle);
         let events = events.lock().unwrap();
         let error = events
             .iter()
@@ -671,7 +677,7 @@ mod tests {
         );
         s.apply(Activation::HoldBegan);
         s.apply(Activation::HoldReleased);
-        assert_eq!(s.state(), State::Error);
+        assert_eq!(s.state(), State::Idle);
         s.inserter = Box::new(FakeInserter {
             result: inserted(Some("Notes")),
         });
@@ -770,7 +776,7 @@ mod tests {
         s.arm();
         assert_eq!(s.state(), State::Idle, "arm errors surface later");
         s.apply(Activation::HoldBegan);
-        assert_eq!(s.state(), State::Error);
+        assert_eq!(s.state(), State::Idle);
         assert!(events.lock().unwrap().iter().any(|e| matches!(
             e,
             Event::Error(err) if err.kind == ErrorKind::Capture
@@ -819,7 +825,7 @@ mod tests {
         );
         s.apply(Activation::HoldBegan);
         s.apply(Activation::HoldReleased);
-        assert_eq!(s.state(), State::Error);
+        assert_eq!(s.state(), State::Idle);
         let events = events.lock().unwrap();
         assert!(events.iter().any(|e| matches!(
             e,

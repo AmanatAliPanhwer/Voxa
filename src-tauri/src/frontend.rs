@@ -58,6 +58,7 @@ pub fn bubble_stop(app: tauri::AppHandle) -> Result<(), String> {
         state.hands_free.store(false, Ordering::Relaxed);
     }
     drop(runner);
+    crate::hide_bubble(&app);
     state
         .inbox
         .try_send(Inbound::ToggleHandsFree)
@@ -66,6 +67,7 @@ pub fn bubble_stop(app: tauri::AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 pub fn app_quit(app: tauri::AppHandle) {
+    crate::hide_bubble(&app);
     app.exit(0);
 }
 
