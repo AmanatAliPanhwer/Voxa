@@ -1,10 +1,7 @@
 use serde::Serialize;
-use std::path::PathBuf;
 use tauri::{Emitter, Manager, State};
 
-use crate::config::Config;
 use crate::frontend::AppState;
-use crate::model::ModelSpec;
 
 #[derive(Serialize)]
 pub struct WizardState {
@@ -57,7 +54,7 @@ pub fn wizard_state(app: tauri::AppHandle) -> WizardState {
     }
 }
 
-pub fn wizard_set_step(app: tauri::AppHandle, state: State<'_, AppState>, step: usize) -> Result<(), String> {
+pub fn wizard_set_step(_app: tauri::AppHandle, state: State<'_, AppState>, step: usize) -> Result<(), String> {
     let current = state.wizard_step.load(std::sync::atomic::Ordering::Relaxed);
     if step > current + 1 {
         return Err("cannot skip steps".into());
@@ -104,7 +101,7 @@ pub fn wizard_download(app: tauri::AppHandle, state: State<'_, AppState>, id: St
 }
 
 #[tauri::command]
-pub fn wizard_state_cmd(app: tauri::AppHandle, state: State<'_, AppState>) -> WizardState {
+pub fn wizard_state_cmd(app: tauri::AppHandle, _state: State<'_, AppState>) -> WizardState {
     wizard_state(app)
 }
 
@@ -124,7 +121,7 @@ pub fn wizard_download_cmd(app: tauri::AppHandle, state: State<'_, AppState>, id
 }
 
 #[tauri::command]
-pub fn model_list_wizard(app: tauri::AppHandle, state: State<'_, AppState>) -> Vec<ModelInfo> {
+pub fn model_list_wizard(_app: tauri::AppHandle, state: State<'_, AppState>) -> Vec<ModelInfo> {
     crate::model::all()
         .iter()
         .map(|spec| ModelInfo {

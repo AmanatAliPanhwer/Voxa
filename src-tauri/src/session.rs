@@ -352,7 +352,6 @@ mod tests {
     struct FakeCapture {
         pcm: Vec<f32>,
         start_ok: bool,
-        levels_in: Vec<f32>,
         levels_out: Vec<f32>,
         error: Option<ErrorInfo>,
         calls: Arc<Mutex<CallCount>>,
@@ -729,7 +728,7 @@ mod tests {
             calls: calls.clone(),
             ..Default::default()
         };
-        let (mut s, events) = harness(capture, Ok("raw".into()), inserted(None));
+        let (mut s, _events) = harness(capture, Ok("raw".into()), inserted(None));
         s.arm();
         s.apply(Activation::HoldBegan);
         assert_eq!(s.state(), State::Listening);

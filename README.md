@@ -4,9 +4,10 @@ A lightweight cross-platform desktop dictation app in the image of Wispr Flow â€
 
 Hold a hotkey, speak, release: Voxa transcribes with on-device Whisper, polishes the text with a Groq-powered cleanup pass, and inserts it into whatever app has your cursor. A floating pill shows honest mic-level metering while you talk.
 
-**Status: in build.** The v1 build is underway against the [buildable spec](https://github.com/AmanatAliPanhwer/Voxa/issues/16); a Tauri 2 skeleton with the `session` actor, the pill projection, and stubbed capture/transcribe/insert stages lands first on `main`, then real hotkey arbitration, mic capture, transcription (embedded whisper-rs), the insertion loop, Groq cleanup, Settings, and onboarding. See the issue tracker for the ticket graph.
+**Status: v1 Complete (Hand-off Ready).** The v1 build is complete against the [buildable spec](https://github.com/AmanatAliPanhwer/Voxa/issues/16) and verified against the [Definition-of-Done Acceptance Matrix](docs/ACCEPTANCE.md) ([#27](https://github.com/AmanatAliPanhwer/Voxa/issues/27)). All architectural contracts (ADR-0001 through ADR-0004) and platform slices (hotkeys, capture, transcription, insertion loop, Groq cleanup, Settings, and onboarding wizard) are delivered and tested.
 
 - Vocabulary: `CONTEXT.md`. Architecture and event contracts: `docs/adr/`.
+- Acceptance & Verification Matrix: `docs/ACCEPTANCE.md`.
 - Build: `cd src-tauri && cargo build` (needs the Tauri toolchain; MSVC + WebView2 on Windows).
 
 ## Download & install

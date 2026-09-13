@@ -381,6 +381,7 @@ mod native {
         text
     }
 
+    #[cfg(test)]
     static CLIPBOARD_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
     #[test]

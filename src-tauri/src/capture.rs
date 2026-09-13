@@ -601,7 +601,7 @@ mod tests {
     fn worker_resamples_and_finishes_with_trimmed_delay() {
         let (producer, consumer) = rtrb::RingBuffer::<f32>::new(RING_CAPACITY);
         drop(producer);
-        let mut resampler = resampler();
+        let resampler = resampler();
         let out = resampler.output_buffer_allocate(true);
         let shared = Arc::new(Mutex::new(Shared::default()));
         let pcm = Arc::new(Mutex::new(Vec::new()));
@@ -647,7 +647,7 @@ mod tests {
     fn worker_without_clip_yields_no_audio() {
         let (producer, consumer) = rtrb::RingBuffer::<f32>::new(RING_CAPACITY);
         drop(producer);
-        let mut resampler = resampler();
+        let resampler = resampler();
         let out = resampler.output_buffer_allocate(true);
         let shared = Arc::new(Mutex::new(Shared::default()));
         let pcm = Arc::new(Mutex::new(Vec::new()));

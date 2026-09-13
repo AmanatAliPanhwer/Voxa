@@ -32,6 +32,7 @@ impl Store {
         entry
     }
 
+    #[allow(dead_code)]
     pub fn len(&self) -> usize {
         self.entries.len()
     }
