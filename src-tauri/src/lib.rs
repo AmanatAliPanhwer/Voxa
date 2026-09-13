@@ -31,6 +31,17 @@ impl Broadcast for TauriBroadcast {
             Event::Clip { outcome, target, timestamp } => {
                 self.app.emit("session:clip", serde_json::json!({ "outcome": outcome, "target": target, "timestamp": timestamp }))
             }
+            Event::Notify { title, body } => {
+                use tauri_plugin_notification::NotificationExt;
+                let _ = self
+                    .app
+                    .notification()
+                    .builder()
+                    .title(title)
+                    .body(body)
+                    .show();
+                Ok(())
+            }
         };
     }
 }
@@ -84,6 +95,7 @@ fn position_primary_bottom_center(
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             let app_handle = app.handle().clone();
 
@@ -110,7 +122,8 @@ pub fn run() {
                     }),
                 )),
                 Box::new(cleanup::PassthroughCleaner),
-                Box::new(insert::NaiveInserter),
+                Box::new(insert::ClipboardInserter),
+                cfg.recovery_hotkey.clone(),
                 Some(state_tx.clone()),
             );
             tauri::async_runtime::spawn(async move {
@@ -215,6 +228,11 @@ pub fn run() {
             let runner = app.state::<AppState>().hotkeys.clone();
             if let Err(err) = hotkeys::register(&app_handle, &runner, &cfg.hotkey) {
                 eprintln!("hotkey registration failed (tray fallback): {err}");
+            }
+            if let Err(err) =
+                hotkeys::register_direct(&app_handle, &inbox_tx, &cfg.recovery_hotkey)
+            {
+                eprintln!("recovery hotkey registration failed (tray fallback): {err}");
             }
 
             Ok(())

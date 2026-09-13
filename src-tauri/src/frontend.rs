@@ -90,6 +90,9 @@ pub fn settings_apply(
     if let Some(value) = patch.get("hotkey").and_then(|v| v.as_str()) {
         cfg.hotkey = value.to_owned();
     }
+    if let Some(value) = patch.get("recovery_hotkey").and_then(|v| v.as_str()) {
+        cfg.recovery_hotkey = value.to_owned();
+    }
     if let Some(value) = patch.get("model_id").and_then(|v| v.as_str()) {
         cfg.model_id = value.to_owned();
     }
@@ -114,6 +117,11 @@ pub fn settings_apply(
     let app_data = app.path().app_data_dir().map_err(|e| e.to_string())?;
     crate::config::save(&app_data, &cfg).map_err(|e| e.to_string())?;
     *state.config.lock().unwrap() = cfg.clone();
+    if patch.get("hotkey").is_some() || patch.get("recovery_hotkey").is_some() {
+        let runner = state.hotkeys.clone();
+        let _ = crate::hotkeys::set_chord(&app, &runner, &cfg.hotkey);
+        let _ = crate::hotkeys::register_direct(&app, &state.inbox, &cfg.recovery_hotkey);
+    }
     let _ = app.emit("config:changed", &cfg);
     Ok(cfg)
 }

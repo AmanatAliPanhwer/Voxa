@@ -7,6 +7,7 @@ use std::path::PathBuf;
 #[serde(rename_all = "snake_case", default)]
 pub struct Config {
     pub hotkey: String,
+    pub recovery_hotkey: String,
     pub mic_device: Option<String>,
     pub model_id: String,
     pub compute_device: String,
@@ -20,6 +21,11 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             hotkey: "Ctrl+Shift+Space".into(),
+            recovery_hotkey: if cfg!(target_os = "macos") {
+                "Cmd+Alt+V".into()
+            } else {
+                "Ctrl+Alt+V".into()
+            },
             mic_device: None,
             model_id: "small.en".into(),
             compute_device: "auto".into(),

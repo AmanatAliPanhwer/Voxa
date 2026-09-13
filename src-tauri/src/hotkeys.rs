@@ -242,6 +242,20 @@ pub fn set_chord(
     register(app, runner, chord)
 }
 
+pub fn register_direct(
+    app: &AppHandle,
+    inbox: &tokio::sync::mpsc::Sender<Inbound>,
+    chord: &str,
+) -> Result<(), tauri_plugin_global_shortcut::Error> {
+    let inbox = inbox.clone();
+    app.global_shortcut()
+        .on_shortcut(chord, move |_app, _shortcut, event| {
+            if matches!(event.state, ShortcutState::Pressed) {
+                let _ = inbox.try_send(Inbound::InsertLast);
+            }
+        })
+}
+
 pub fn spawn_ticker(runner: Arc<Mutex<Hotkeys>>) {
     tauri::async_runtime::spawn(async move {
         loop {

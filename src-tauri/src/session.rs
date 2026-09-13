@@ -44,6 +44,7 @@ pub enum Event {
     Progress { phase: String, percent: f32 },
     Error(ErrorInfo),
     Clip { outcome: String, target: Option<String>, timestamp: u64 },
+    Notify { title: String, body: String },
 }
 
 pub trait CaptureDevice: Send {
@@ -63,8 +64,14 @@ pub trait Cleaner: Send {
     fn clean(&self, raw: &str) -> String;
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum InsertOutcome {
+    Inserted { target: Option<String> },
+    PendingManualPaste { hint: String },
+}
+
 pub trait Inserter: Send {
-    fn insert(&self, text: &str) -> Result<Option<String>, ErrorInfo>;
+    fn insert(&self, text: &str) -> Result<InsertOutcome, ErrorInfo>;
 }
 
 pub struct Session {
@@ -75,6 +82,7 @@ pub struct Session {
     cleaner: Box<dyn Cleaner>,
     inserter: Box<dyn Inserter>,
     store: Store,
+    recovery_chord: String,
     state_sink: Option<tokio::sync::watch::Sender<State>>,
     silent: bool,
 }
@@ -86,6 +94,7 @@ impl Session {
         transcriber: Box<dyn Transcriber>,
         cleaner: Box<dyn Cleaner>,
         inserter: Box<dyn Inserter>,
+        recovery_chord: String,
         state_sink: Option<tokio::sync::watch::Sender<State>>,
     ) -> Self {
         Self {
@@ -96,6 +105,7 @@ impl Session {
             cleaner,
             inserter,
             store: Store::new(),
+            recovery_chord,
             state_sink,
             silent: false,
         }
@@ -157,15 +167,14 @@ impl Session {
         };
         self.to(State::Inserting);
         match self.inserter.insert(&last.clean_text) {
-            Ok(target) => {
-                self.broadcasts.emit(Event::Clip {
-                    outcome: "inserted".into(),
-                    target: target.clone(),
-                    timestamp: last.timestamp,
-                });
-                self.to(State::Done);
+            Ok(outcome) => self.settle_insert(outcome, last.timestamp),
+            Err(err) => {
+                self.notify(
+                    "Insertion failed",
+                    format!("Press {} to insert the last result again", self.recovery_chord),
+                );
+                self.fail(err);
             }
-            Err(err) => self.fail(err),
         }
     }
 
@@ -234,20 +243,48 @@ impl Session {
         let clean = self.cleaner.clean(&raw);
         self.to(State::Inserting);
         match self.inserter.insert(&clean) {
-            Ok(target) => {
-                let entry = self.store.push(clean, target.clone());
-                self.broadcasts.emit(Event::Clip {
-                    outcome: "inserted".into(),
-                    target,
-                    timestamp: entry.timestamp,
-                });
-                self.to(State::Done);
+            Ok(outcome) => {
+                let entry = self.store.push(clean, outcome_target(&outcome));
+                self.settle_insert(outcome, entry.timestamp);
             }
             Err(err) => {
                 self.store.push(clean, None);
+                self.notify(
+                    "Insertion failed",
+                    format!("Press {} to insert the last result again", self.recovery_chord),
+                );
                 self.fail(err);
             }
         }
+    }
+
+    fn settle_insert(&mut self, outcome: InsertOutcome, timestamp: u64) {
+        match outcome {
+            InsertOutcome::Inserted { target } => {
+                self.broadcasts.emit(Event::Clip {
+                    outcome: "inserted".into(),
+                    target,
+                    timestamp,
+                });
+                self.to(State::Done);
+            }
+            InsertOutcome::PendingManualPaste { hint } => {
+                self.notify("Clipboard ready", format!("Press {hint} to paste"));
+                self.broadcasts.emit(Event::Clip {
+                    outcome: "manual".into(),
+                    target: None,
+                    timestamp,
+                });
+                self.to(State::Done);
+            }
+        }
+    }
+
+    fn notify(&mut self, title: impl Into<String>, body: impl Into<String>) {
+        self.broadcasts.emit(Event::Notify {
+            title: title.into(),
+            body: body.into(),
+        });
     }
 
     fn fail(&mut self, err: ErrorInfo) {
@@ -270,6 +307,13 @@ fn is_blank(pcm: &[f32]) -> bool {
     }
     let energy: f32 = pcm.iter().map(|s| s * s).sum::<f32>() / pcm.len() as f32;
     energy < 1e-6
+}
+
+fn outcome_target(outcome: &InsertOutcome) -> Option<String> {
+    match outcome {
+        InsertOutcome::Inserted { target } => target.clone(),
+        InsertOutcome::PendingManualPaste { .. } => None,
+    }
 }
 
 #[cfg(test)]
@@ -357,19 +401,25 @@ mod tests {
     }
 
     struct FakeInserter {
-        result: Result<Option<String>, ErrorInfo>,
+        result: Result<InsertOutcome, ErrorInfo>,
     }
 
     impl Inserter for FakeInserter {
-        fn insert(&self, _text: &str) -> Result<Option<String>, ErrorInfo> {
+        fn insert(&self, _text: &str) -> Result<InsertOutcome, ErrorInfo> {
             self.result.clone()
         }
+    }
+
+    fn inserted(target: Option<&str>) -> Result<InsertOutcome, ErrorInfo> {
+        Ok(InsertOutcome::Inserted {
+            target: target.map(str::to_owned),
+        })
     }
 
     fn harness(
         capture: FakeCapture,
         transcribe: Result<String, ErrorInfo>,
-        insert: Result<Option<String>, ErrorInfo>,
+        insert: Result<InsertOutcome, ErrorInfo>,
     ) -> (Session, Arc<Mutex<Vec<Event>>>) {
         let events = Arc::new(Mutex::new(Vec::new()));
         let session = Session {
@@ -382,6 +432,7 @@ mod tests {
             cleaner: Box::new(FakeCleaner),
             inserter: Box::new(FakeInserter { result: insert }),
             store: Store::new(),
+            recovery_chord: "Ctrl+Alt+V".into(),
             state_sink: None,
             silent: false,
         };
@@ -406,7 +457,7 @@ mod tests {
                 ..Default::default()
             },
             Ok("raw".into()),
-            Ok(None),
+            inserted(None),
         );
         s.apply(Activation::HoldBegan);
         assert_eq!(s.state(), State::Listening);
@@ -421,7 +472,7 @@ mod tests {
                 ..Default::default()
             },
             Ok("raw".into()),
-            Ok(None),
+            inserted(None),
         );
         s.apply(Activation::HoldBegan);
         assert_eq!(s.state(), State::Error);
@@ -435,7 +486,7 @@ mod tests {
                 ..Default::default()
             },
             Ok("raw".into()),
-            Ok(None),
+            inserted(None),
         );
         s.apply(Activation::HoldBegan);
         assert_eq!(s.state(), State::Listening);
@@ -453,7 +504,7 @@ mod tests {
                 ..Default::default()
             },
             Ok("raw phrase".into()),
-            Ok(Some("Notes".into())),
+            inserted(Some("Notes")),
         );
         s.apply(Activation::HoldBegan);
         s.apply(Activation::HoldReleased);
@@ -488,7 +539,7 @@ mod tests {
                 ..Default::default()
             },
             Ok("raw phrase".into()),
-            Ok(None),
+            inserted(None),
         );
         s.apply(Activation::HoldBegan);
         s.apply(Activation::ToggleOff);
@@ -506,7 +557,7 @@ mod tests {
                 ..Default::default()
             },
             Err(ErrorInfo::new(ErrorKind::Transcribe, true, "model missing")),
-            Ok(None),
+            inserted(None),
         );
         s.apply(Activation::HoldBegan);
         s.apply(Activation::HoldReleased);
@@ -554,7 +605,7 @@ mod tests {
                 ..Default::default()
             },
             Ok("raw phrase".into()),
-            Ok(Some("Notes".into())),
+            inserted(Some("Notes")),
         );
         s.apply(Activation::HoldBegan);
         assert_eq!(s.state(), State::Listening);
@@ -583,7 +634,7 @@ mod tests {
                 ..Default::default()
             },
             Ok("raw".into()),
-            Ok(None),
+            inserted(None),
         );
         s.toggle_hands_free();
         assert_eq!(s.state(), State::Listening);
@@ -608,7 +659,7 @@ mod tests {
         s.apply(Activation::HoldReleased);
         assert_eq!(s.state(), State::Error);
         s.inserter = Box::new(FakeInserter {
-            result: Ok(Some("Notes".into())),
+            result: inserted(Some("Notes")),
         });
         s.insert_last_result();
         assert_eq!(s.state(), State::Done);
@@ -619,7 +670,7 @@ mod tests {
         let (mut s, _events) = harness(
             FakeCapture::default(),
             Ok("raw".into()),
-            Ok(None),
+            inserted(None),
         );
         s.insert_last_result();
         assert_eq!(s.state(), State::Idle);
@@ -634,7 +685,7 @@ mod tests {
                 ..Default::default()
             },
             Ok("raw".into()),
-            Ok(None),
+            inserted(None),
         );
         s.apply(Activation::HoldBegan);
         s.apply(Activation::HoldReleased);
@@ -655,7 +706,7 @@ mod tests {
             calls: calls.clone(),
             ..Default::default()
         };
-        let (mut s, _events) = harness(capture, Ok("raw".into()), Ok(None));
+        let (mut s, _events) = harness(capture, Ok("raw".into()), inserted(None));
         s.apply(Activation::HoldBegan);
         let calls = calls.lock().unwrap();
         assert_eq!(calls.start, 0, "hold path must promote, not start");
@@ -670,7 +721,7 @@ mod tests {
             calls: calls.clone(),
             ..Default::default()
         };
-        let (mut s, events) = harness(capture, Ok("raw".into()), Ok(None));
+        let (mut s, events) = harness(capture, Ok("raw".into()), inserted(None));
         s.arm();
         s.apply(Activation::HoldBegan);
         assert_eq!(s.state(), State::Listening);
@@ -687,7 +738,7 @@ mod tests {
             calls: calls.clone(),
             ..Default::default()
         };
-        let (mut s, events) = harness(capture, Ok("raw".into()), Ok(None));
+        let (mut s, events) = harness(capture, Ok("raw".into()), inserted(None));
         s.arm();
         s.unarm();
         assert_eq!(s.state(), State::Idle);
@@ -701,7 +752,7 @@ mod tests {
             start_ok: false,
             ..Default::default()
         };
-        let (mut s, events) = harness(capture, Ok("raw".into()), Ok(None));
+        let (mut s, events) = harness(capture, Ok("raw".into()), inserted(None));
         s.arm();
         assert_eq!(s.state(), State::Idle, "arm errors surface later");
         s.apply(Activation::HoldBegan);
@@ -709,6 +760,61 @@ mod tests {
         assert!(events.lock().unwrap().iter().any(|e| matches!(
             e,
             Event::Error(err) if err.kind == ErrorKind::Capture
+        )));
+    }
+
+    #[test]
+    fn manual_paste_tier_notifies_and_marks_outcome_manual() {
+        let (mut s, events) = harness(
+            FakeCapture {
+                pcm: vec![0.1; 1600],
+                start_ok: true,
+                ..Default::default()
+            },
+            Ok("raw phrase".into()),
+            Ok(InsertOutcome::PendingManualPaste {
+                hint: "Ctrl+V".into(),
+            }),
+        );
+        s.apply(Activation::HoldBegan);
+        s.apply(Activation::HoldReleased);
+        assert_eq!(s.state(), State::Done);
+        let events = events.lock().unwrap();
+        assert!(events.iter().any(|e| matches!(
+            e,
+            Event::Notify { title, body }
+                if title == "Clipboard ready" && body.contains("Ctrl+V")
+        )));
+        assert!(events.iter().any(|e| matches!(
+            e,
+            Event::Clip { outcome, target, .. }
+                if outcome == "manual" && target.is_none()
+        )));
+    }
+
+    #[test]
+    fn failed_insert_emits_recovery_notification() {
+        let (mut s, events) = harness(
+            FakeCapture {
+                pcm: vec![0.1; 1600],
+                start_ok: true,
+                ..Default::default()
+            },
+            Ok("raw phrase".into()),
+            Err(ErrorInfo::new(ErrorKind::Insert, true, "no foreground app")),
+        );
+        s.apply(Activation::HoldBegan);
+        s.apply(Activation::HoldReleased);
+        assert_eq!(s.state(), State::Error);
+        let events = events.lock().unwrap();
+        assert!(events.iter().any(|e| matches!(
+            e,
+            Event::Notify { title, body }
+                if title == "Insertion failed" && body.contains("Ctrl+Alt+V")
+        )));
+        assert!(events.iter().any(|e| matches!(
+            e,
+            Event::Error(err) if err.kind == ErrorKind::Insert
         )));
     }
 }
