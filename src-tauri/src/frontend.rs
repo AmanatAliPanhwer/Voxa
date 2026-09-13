@@ -2,7 +2,7 @@ use serde::Serialize;
 use std::path::PathBuf;
 use tauri::{Emitter, Manager, State};
 
-use crate::config::Config;
+use crate::config::{Config, InsertOverride};
 use crate::session::{Inbound, State as SessionState};
 
 pub struct AppState {
@@ -13,6 +13,9 @@ pub struct AppState {
     pub models_dir: PathBuf,
     pub hands_free: std::sync::Arc<std::sync::atomic::AtomicBool>,
     pub tone_preset: std::sync::Arc<std::sync::Mutex<String>>,
+    pub insert_overrides: std::sync::Arc<std::sync::Mutex<Vec<InsertOverride>>>,
+    pub sounds: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    pub logs_dir: PathBuf,
 }
 
 #[tauri::command]
@@ -114,6 +117,13 @@ pub fn settings_apply(
     if let Some(value) = patch.get("recovery_hotkey").and_then(|v| v.as_str()) {
         cfg.recovery_hotkey = value.to_owned();
     }
+    if patch.get("hotkey").is_some() || patch.get("recovery_hotkey").is_some() {
+        let runner = state.hotkeys.clone();
+        if let Err(err) = crate::hotkeys::set_chord(&app, &runner, &cfg.hotkey) {
+            return Err(format!("hotkey is reserved or unavailable: {err}"));
+        }
+        let _ = crate::hotkeys::register_direct(&app, &state.inbox, &cfg.recovery_hotkey);
+    }
     if let Some(value) = patch.get("model_id").and_then(|v| v.as_str()) {
         cfg.model_id = value.to_owned();
     }
@@ -124,14 +134,30 @@ pub fn settings_apply(
         cfg.tone_preset = value.to_owned();
         *state.tone_preset.lock().unwrap() = value.to_owned();
     }
-    if let Some(value) = patch.get("mic_device").and_then(|v| v.as_str()) {
-        cfg.mic_device = Some(value.to_owned());
+    if let Some(value) = patch.get("mic_device") {
+        cfg.mic_device = value.as_str().map(|v| v.to_owned());
+    }
+    if let Some(value) = patch.get("insert_overrides").and_then(|v| v.as_array()) {
+        let rules: Vec<InsertOverride> = value
+            .iter()
+            .filter_map(|item| serde_json::from_value(item.clone()).ok())
+            .collect();
+        cfg.insert_overrides = rules.clone();
+        *state.insert_overrides.lock().unwrap() = rules;
     }
     if let Some(value) = patch.get("launch_at_login").and_then(|v| v.as_bool()) {
         cfg.launch_at_login = value;
+        use tauri_plugin_autostart::ManagerExt;
+        let result = if value {
+            app.autolaunch().enable()
+        } else {
+            app.autolaunch().disable()
+        };
+        result.map_err(|e| format!("launch-at-login: {e}"))?;
     }
     if let Some(value) = patch.get("sounds").and_then(|v| v.as_bool()) {
         cfg.sounds = value;
+        state.sounds.store(value, std::sync::atomic::Ordering::Relaxed);
     }
     if let Some(value) = patch.get("first_run").and_then(|v| v.as_bool()) {
         cfg.first_run = value;
@@ -139,10 +165,8 @@ pub fn settings_apply(
     let app_data = app.path().app_data_dir().map_err(|e| e.to_string())?;
     crate::config::save(&app_data, &cfg).map_err(|e| e.to_string())?;
     *state.config.lock().unwrap() = cfg.clone();
-    if patch.get("hotkey").is_some() || patch.get("recovery_hotkey").is_some() {
-        let runner = state.hotkeys.clone();
-        let _ = crate::hotkeys::set_chord(&app, &runner, &cfg.hotkey);
-        let _ = crate::hotkeys::register_direct(&app, &state.inbox, &cfg.recovery_hotkey);
+    if patch.get("mic_device").is_some() {
+        let _ = state.inbox.try_send(Inbound::SetMicDevice(cfg.mic_device.clone()));
     }
     let _ = app.emit("config:changed", &cfg);
     Ok(cfg)
@@ -167,6 +191,72 @@ pub fn model_list(state: State<'_, AppState>) -> Vec<ModelInfo> {
             downloaded: crate::model::downloaded(&state.models_dir, spec),
         })
         .collect()
+}
+
+#[tauri::command]
+pub async fn model_download(app: tauri::AppHandle, id: String) -> Result<(), String> {
+    let Some(spec) = crate::model::find(&id) else {
+        return Err("unknown model".into());
+    };
+    let models_dir = app.state::<AppState>().models_dir.clone();
+    let app_for_progress = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::model::ensure(&models_dir, spec, |percent| {
+            let _ = app_for_progress.emit(
+                "model:progress",
+                serde_json::json!({ "id": spec.id, "percent": percent }),
+            );
+        })
+        .map(|_| ())
+        .map_err(|e| e.detail)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub fn model_delete(app: tauri::AppHandle, id: String) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    let Some(spec) = crate::model::find(&id) else {
+        return Err("unknown model".into());
+    };
+    let path = crate::model::file_path(&state.models_dir, spec);
+    if path.is_file() {
+        std::fs::remove_file(&path).map_err(|e| e.to_string())?;
+    }
+    let part = state.models_dir.join(format!("{}.part", spec.file));
+    if part.is_file() {
+        std::fs::remove_file(&part).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn capture_devices() -> Vec<String> {
+    crate::capture::list_input_devices()
+}
+
+#[tauri::command]
+pub fn diagnostics_peek(state: State<'_, AppState>) -> String {
+    crate::diagnostics::Log::new(state.logs_dir.clone()).tail(8192)
+}
+
+#[tauri::command]
+pub fn diagnostics_reveal(app: tauri::AppHandle) -> Result<(), String> {
+    let logs_dir = app.state::<AppState>().logs_dir.clone();
+    let _ = crate::diagnostics::Log::new(logs_dir.clone());
+    reveal_dir(&logs_dir)
+}
+
+pub fn reveal_dir(dir: &PathBuf) -> Result<(), String> {
+    let result = if cfg!(target_os = "windows") {
+        std::process::Command::new("explorer").arg(&dir).spawn()
+    } else if cfg!(target_os = "macos") {
+        std::process::Command::new("open").arg(&dir).spawn()
+    } else {
+        std::process::Command::new("xdg-open").arg(&dir).spawn()
+    };
+    result.map(|_| ()).map_err(|e| format!("cannot open logs dir: {e}"))
 }
 
 #[derive(Clone, Debug, Serialize)]

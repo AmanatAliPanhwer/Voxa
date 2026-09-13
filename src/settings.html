@@ -4,79 +4,619 @@
   <meta charset="utf-8">
   <title>Voxa Settings</title>
   <style>
-    html, body { height: 100%; margin: 0; }
-    body {
-      background: #0b0d12; color: #cfd6e4;
-      font: 13px/1.5 system-ui, sans-serif;
-      display: flex; align-items: center; justify-content: center;
-      flex-direction: column; gap: 10px; user-select: none;
+    :root {
+      --red: #ec3b33;
+      --bg: #0b0d12;
+      --sidebar: #0e1117;
+      --panel: #131720;
+      --panel-2: #1a1f2b;
+      --ink: #e7ecf5;
+      --dim: #8b93a7;
+      --muted: #5b6377;
+      --line: #262c3a;
     }
-    .mark { display: flex; gap: 3px; align-items: flex-end; height: 18px; }
-    .mark i { width: 3px; background: #ec3b33; border-radius: 1px; }
-    h1 { font-size: 14px; letter-spacing: .12em; text-transform: uppercase; color: #e7ecf5; font-weight: 600; }
-    p { color: #5b6377; font-size: 12px; margin: 0; }
-    #chord { color: #e7ecf5; font-family: ui-monospace, monospace; }
-    #status { color: #5b6377; font-size: 11px; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      background: var(--bg); color: var(--ink);
+      font: 13px/1.5 system-ui, sans-serif;
+      display: flex; user-select: none; -webkit-user-select: none;
+    }
+    aside {
+      width: 190px; flex: 0 0 190px;
+      background: var(--sidebar);
+      border-right: 1px solid var(--line);
+      display: flex; flex-direction: column;
+      padding: 16px 10px;
+    }
+    .brand { display: flex; align-items: center; gap: 9px; padding: 2px 8px 16px; }
+    .mark { display: flex; gap: 3px; align-items: flex-end; height: 16px; }
+    .mark i { width: 3px; background: var(--red); border-radius: 1px; }
+    .brand span { font-size: 12px; letter-spacing: .16em; text-transform: uppercase; font-weight: 600; }
+    nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+    nav button {
+      text-align: left; background: none; border: 0; color: var(--dim);
+      font: inherit; font-size: 12px; letter-spacing: .08em; text-transform: uppercase;
+      padding: 8px 10px; border-radius: 6px; cursor: pointer;
+      display: flex; align-items: center; gap: 9px;
+    }
+    nav button::before {
+      content: ""; width: 3px; height: 3px; border-radius: 50%;
+      background: currentColor; opacity: .5; flex: 0 0 3px;
+    }
+    nav button:hover { color: var(--ink); background: #171b26; }
+    nav button.active { color: var(--ink); background: #1c2230; }
+    nav button.active::before { background: var(--red); opacity: 1; }
+    .foot { padding: 10px 8px 2px; color: var(--muted); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
+    main { flex: 1; overflow-y: auto; padding: 26px 32px 40px; min-width: 0; }
+    .pane { display: none; max-width: 640px; }
+    .pane.active { display: block; }
+    h1 {
+      font-size: 12px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase;
+      border-left: 3px solid var(--red); padding-left: 10px; margin-bottom: 22px;
+    }
+    .row { margin-bottom: 20px; }
+    .label { display: block; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+    .hint { font-size: 11px; color: var(--muted); margin-top: 6px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .kbd {
+      display: inline-block; font-family: ui-monospace, Consolas, monospace; font-size: 12px;
+      background: var(--panel-2); border: 1px solid var(--line); border-radius: 5px;
+      padding: 1px 7px; color: var(--ink);
+    }
+    .touch {
+      background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px;
+    }
+    button.primary, button.ghost {
+      font: inherit; font-size: 12px; letter-spacing: .04em; border-radius: 6px;
+      padding: 7px 14px; cursor: pointer;
+    }
+    button.primary { background: var(--red); border: 1px solid var(--red); color: #fff; }
+    button.primary:hover { filter: brightness(1.08); }
+    button.primary:disabled { opacity: .45; cursor: default; filter: none; }
+    button.ghost { background: var(--panel-2); border: 1px solid var(--line); color: var(--ink); }
+    button.ghost:hover { border-color: #39415a; }
+    button.ghost:disabled { opacity: .45; cursor: default; }
+    button.danger { color: #f0857f; }
+    input[type="text"], input[type="password"], select, input[type="search"] {
+      font: inherit; color: var(--ink);
+      background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px;
+      padding: 7px 10px; width: 100%;
+    }
+    input:focus, select:focus { outline: none; border-color: var(--red); }
+    .field { display: flex; gap: 8px; align-items: center; }
+    .radio { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 7px; cursor: pointer; }
+    .radio:hover { background: var(--panel-2); }
+    .radio input { accent-color: var(--red); }
+    .radio input:disabled + .label { color: var(--muted); }
+    .radio.empty { opacity: .55; }
+    .radio .sub { color: var(--muted); font-size: 11px; }
+    .status { margin-top: 10px; font-size: 12px; min-height: 18px; }
+    .status.ok { color: #6fd8a0; }
+    .status.err { color: #e98c86; }
+    .status.mute { color: var(--muted); }
+    .progress { height: 6px; border-radius: 3px; background: var(--panel-2); overflow: hidden; margin-top: 8px; }
+    .progress > i { display: block; height: 100%; width: 0; background: var(--red); border-radius: 3px; transition: width .15s ease; }
+    .model {
+      display: flex; align-items: center; gap: 12px;
+      background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+      padding: 11px 14px; margin-bottom: 9px;
+    }
+    .model input[type="radio"] { accent-color: var(--red); }
+    .model .name { font-weight: 600; font-size: 13px; }
+    .model .meta { color: var(--dim); font-size: 11px; }
+    .model .badge { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; padding: 2px 7px; border-radius: 9px; }
+    .badge.ok { background: rgba(111,216,160,.12); color: #6fd8a0; }
+    .badge.off { background: rgba(139,147,167,.12); color: var(--dim); }
+    .badge.go { background: rgba(236,59,51,.14); color: #f0857f; }
+    .model .grow { flex: 1; }
+    .charsheet { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 0; margin-top: 6px; }
+    .rule { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+    .rule:last-child { border-bottom: 0; }
+    .rule .grow { flex: 1; }
+    .rule .pat { font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: var(--ink); }
+    .rule select { width: auto; padding: 4px 8px; }
+    .logbox {
+      width: 100%; height: 280px; resize: none;
+      font-family: ui-monospace, Consolas, monospace; font-size: 11px; line-height: 1.55;
+      color: var(--dim); background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
+      padding: 10px 12px;
+    }
+    .flex { display: flex; gap: 8px; align-items: center; }
+    .switch { display: flex; align-items: center; gap: 12px; }
+    .switch input { width: 34px; height: 18px; appearance: none; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; position: relative; cursor: pointer; }
+    .switch input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--dim); transition: .15s ease; }
+    .switch input:checked { background: var(--red); border-color: var(--red); }
+    .switch input:checked::after { left: 18px; background: #fff; }
   </style>
 </head>
 <body>
-  <div class="mark">
-    <i style="height:6px"></i><i style="height:10px"></i><i style="height:13px"></i><i style="height:10px"></i><i style="height:6px"></i>
-  </div>
-  <h1>Voxa Settings</h1>
-  <p>App-local key: <span id="chord">–</span></p>
-  <p id="status">The settings surface lands with ticket #25.</p>
+  <aside>
+    <div class="brand">
+      <div class="mark"><i style="height:6px"></i><i style="height:10px"></i><i style="height:13px"></i><i style="height:10px"></i><i style="height:6px"></i></div>
+      <span>Voxa</span>
+    </div>
+    <nav>
+      <button data-pane="hotkey" class="active">Hotkey</button>
+      <button data-pane="mic">Microphone</button>
+      <button data-pane="model">Model</button>
+      <button data-pane="compute">Compute</button>
+      <button data-pane="cleanup">Cleanup</button>
+      <button data-pane="insert">Insert</button>
+      <button data-pane="startups">Startup</button>
+      <button data-pane="diag">Diagnostics</button>
+    </nav>
+    <div class="foot">v0.1.0</div>
+  </aside>
+
+  <main>
+
+    <section class="pane active" data-pane="hotkey">
+      <h1>Hotkey</h1>
+      <div class="touch">
+        <span class="label">Dictation chord</span>
+        <div class="field">
+          <span class="kbd" id="hotkey-chord">–</span>
+          <button class="ghost" id="hotkey-record">Change</button>
+          <span class="hint mono" id="hotkey-echo"></span>
+        </div>
+        <p class="hint">Hold to dictate, press twice quickly for hands-free. The bubble next to the pill stops hands-free.</p>
+        <div class="status mute" id="hotkey-status"></div>
+      </div>
+      <div class="touch" style="margin-top:14px">
+        <span class="label">Recovery chord</span>
+        <div class="field">
+          <span class="kbd" id="recovery-chord">–</span>
+        </div>
+        <p class="hint">Re-inserts the last result after an insertion failed.</p>
+      </div>
+    </section>
+
+    <section class="pane" data-pane="mic">
+      <h1>Microphone</h1>
+      <div class="touch" id="mic-list"></div>
+      <div class="status mute" id="mic-status"></div>
+      <p class="hint">Picking a device re-routes capture immediately, without a restart.</p>
+    </section>
+
+    <section class="pane" data-pane="model">
+      <h1>Model</h1>
+      <div id="model-list"></div>
+      <div class="status mute" id="model-status"></div>
+      <p class="hint">The active model is highlighted. Downloads run in the background and resume after interruption.</p>
+    </section>
+
+    <section class="pane" data-pane="compute">
+      <h1>Compute device</h1>
+      <div class="touch">
+        <label class="radio">
+          <input type="radio" name="compute" value="auto">
+          <span><span class="label" style="margin:0">Auto</span><span class="sub" style="display:block">Let Voxa choose</span></span>
+        </label>
+        <label class="radio">
+          <input type="radio" name="compute" value="cpu">
+          <span><span class="label" style="margin:0">CPU</span><span class="sub" style="display:block">Always available</span></span>
+        </label>
+        <label class="radio empty">
+          <input type="radio" name="compute" value="gpu" disabled>
+          <span><span class="label" style="margin:0">GPU</span><span class="sub" style="display:block">Ships in a later v1 build on Windows &amp; Linux</span></span>
+        </label>
+        <div class="status mute" id="compute-status"></div>
+      </div>
+    </section>
+
+    <section class="pane" data-pane="cleanup">
+      <h1>Cleanup</h1>
+      <div class="touch">
+        <span class="label">Cleanup provider key</span>
+        <div class="field">
+          <input type="password" id="cleanup-key" placeholder="gsk_…" autocomplete="off" spellcheck="false">
+          <button class="ghost" id="cleanup-toggle-show" style="flex:0 0 auto">Show</button>
+        </div>
+        <div class="flex" style="margin-top:10px">
+          <button class="primary" id="cleanup-save">Save &amp; test</button>
+          <button class="ghost" id="cleanup-clear">Clear</button>
+        </div>
+        <div class="status mute" id="cleanup-status"></div>
+        <p class="hint">The key is stored only in your OS keychain, never in the settings file.</p>
+      </div>
+      <div class="touch" style="margin-top:14px">
+        <span class="label">Tone preset</span>
+        <select id="cleanup-preset"></select>
+        <p class="hint">How a raw transcript becomes clean text. Every preset is a different way of producing it.</p>
+      </div>
+    </section>
+
+    <section class="pane" data-pane="insert">
+      <h1>Insert</h1>
+      <div class="touch">
+        <span class="label">Per-app insert override</span>
+        <p class="hint" style="margin-top:2px">Force a window (matched by title) to auto-insert or clipboard-only paste regardless of the current tier.</p>
+        <div class="charsheet" id="rule-list"></div>
+        <div class="field" style="margin-top:10px">
+          <input type="text" id="rule-pattern" placeholder="Window title contains…" spellcheck="false">
+          <select id="rule-method" style="flex:0 0 auto; width:auto">
+            <option value="auto">Auto insert</option>
+            <option value="clip">Clipboard only</option>
+          </select>
+          <button class="ghost" id="rule-add">Add</button>
+        </div>
+        <div class="status mute" id="rule-status"></div>
+      </div>
+    </section>
+
+    <section class="pane" data-pane="startups">
+      <h1>Startup &amp; sounds</h1>
+      <div class="touch">
+        <label class="switch">
+          <input type="checkbox" id="opt-launch">
+          <span class="label" style="margin:0">Launch at login</span>
+        </label>
+        <label class="switch" style="margin-top:16px">
+          <input type="checkbox" id="opt-sounds">
+          <span class="label" style="margin:0">Sounds</span>
+        </label>
+        <p class="hint">Soft start and paste cues from the pill.</p>
+        <div class="status mute" id="startup-status"></div>
+      </div>
+    </section>
+
+    <section class="pane" data-pane="diag">
+      <h1>Diagnostics</h1>
+      <div class="flex">
+        <button class="ghost" id="diag-refresh">Refresh</button>
+        <button class="ghost" id="diag-reveal">Reveal logs</button>
+      </div>
+      <textarea class="logbox" id="diag-log" readonly></textarea>
+    </section>
+  </main>
+
   <script>
     const invoke = window.__TAURI__.core.invoke;
+    const listen = (event, handler) => window.__TAURI__.event.listen(event, (e) => handler(e.payload));
 
-    function parseChord(chord) {
-      const parts = chord.split("+").map((p) => p.trim());
-      const modifiers = {
-        ctrl: false, shift: false, alt: false, meta: false,
-      };
-      for (const part of parts) {
-        const lower = part.toLowerCase();
-        if (lower === "ctrl" || lower === "control") { modifiers.ctrl = true; continue; }
-        if (lower === "shift") { modifiers.shift = true; continue; }
-        if (lower === "alt" || lower === "option") { modifiers.alt = true; continue; }
-        if (lower === "meta" || lower === "cmd" || lower === "command" || lower === "super") {
-          modifiers.meta = true; continue;
-        }
-        modifiers.key = part;
-      }
-      return modifiers;
+    let config = null;
+    let busy = {};
+
+    function fmtKey(key) {
+      if (key === ' ') return 'Space';
+      if (key === 'ArrowDown') return 'Down';
+      if (key === 'ArrowUp') return 'Up';
+      if (key === 'ArrowLeft') return 'Left';
+      if (key === 'ArrowRight') return 'Right';
+      return key.length === 1 ? key.toUpperCase() : key;
+    }
+    function chordFromEvent(e) {
+      const parts = [];
+      if (e.ctrlKey) parts.push('Ctrl');
+      if (e.altKey) parts.push('Alt');
+      if (e.shiftKey) parts.push('Shift');
+      if (e.metaKey) parts.push('Cmd');
+      const key = fmtKey(e.key);
+      if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return null;
+      if (!parts.length) return null;
+      parts.push(key);
+      return parts.join('+');
+    }
+    function setStatus(id, text, cls) {
+      const el = document.getElementById(id);
+      el.textContent = text;
+      el.className = 'status ' + (cls || 'mute');
     }
 
-    function matches(e, chord) {
-      return e.ctrlKey === chord.ctrl
-        && e.shiftKey === chord.shift
-        && e.altKey === chord.alt
-        && e.metaKey === chord.meta
-        && e.key === chord.key;
-    }
+    // Navigation
+    document.querySelectorAll('nav button').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('nav button').forEach((b) => b.classList.toggle('active', b === btn));
+        document.querySelectorAll('.pane').forEach((p) => p.classList.toggle('active', p.dataset.pane === btn.dataset.pane));
+        if (btn.dataset.pane === 'diag') refreshLog();
+      });
+    });
 
-    let chord = { ctrl: true, shift: true, meta: false, alt: false, key: " " };
+    // ---- Hotkey ----
+    let recording = false;
+    const recordBtn = document.getElementById('hotkey-record');
+    const echo = document.getElementById('hotkey-echo');
 
-    window.addEventListener("keydown", (e) => {
-      if (e.repeat) return;
-      if (e.key !== chord.key) return;
-      if (!matches(e, chord)) return;
+    document.addEventListener('keydown', (e) => {
+      if (!recording) return;
       e.preventDefault();
-      invoke("hotkeys_local_event", { kind: "down" });
+      e.stopPropagation();
+      const chord = chordFromEvent(e);
+      if (!chord) return;
+      recording = false;
+      recordBtn.textContent = 'Change';
+      echo.textContent = '';
+      if (chord === config.hotkey) { setStatus('hotkey-status', 'Chord unchanged.', 'mute'); return; }
+      if (chord === config.recovery_hotkey) {
+        setStatus('hotkey-status', 'Already used as the recovery chord.', 'err');
+        return;
+      }
+      invoke('settings_apply', { patch: { hotkey: chord } }).then((cfg) => {
+        config = cfg;
+        renderChord();
+        setStatus('hotkey-status', 'Chord applied live.', 'ok');
+      }).catch(async (err) => {
+        setStatus('hotkey-status', 'Reserved or unavailable: ' + err, 'err');
+        try { config = await invoke('settings_get'); renderChord(); } catch (e) {}
+      });
+    });
+    recordBtn.addEventListener('click', () => {
+      recording = !recording;
+      recordBtn.textContent = recording ? 'Press chord…' : 'Change';
+      echo.textContent = recording ? 'press your chord' : '';
+      if (recording) setStatus('hotkey-status', '', 'mute');
     });
 
-    window.addEventListener("keyup", (e) => {
-      if (e.key !== chord.key) return;
-      invoke("hotkeys_local_event", { kind: "up" });
+    function renderChord() {
+      document.getElementById('hotkey-chord').textContent = config.hotkey;
+      document.getElementById('recovery-chord').textContent = config.recovery_hotkey;
+    }
+
+    // ---- Microphone ----
+    function renderMics() {
+      const list = document.getElementById('mic-list');
+      list.innerHTML = '';
+      const devices = window.__micDevices || [];
+      const make = (label, sub, value, checked) => {
+        const el = document.createElement('label');
+        el.className = 'radio';
+        const input = document.createElement('input');
+        input.type = 'radio'; input.name = 'mic'; input.value = value;
+        input.checked = checked === true;
+        el.appendChild(input);
+        const span = document.createElement('span');
+        const l = document.createElement('span');
+        l.className = 'label'; l.style.margin = '0'; l.textContent = label;
+        span.appendChild(l);
+        if (sub) { const s = document.createElement('span'); s.className = 'sub'; s.style.display = 'block'; s.textContent = sub; span.appendChild(s); }
+        el.appendChild(span);
+        el.addEventListener('click', () => {
+          if (input.checked) return;
+          input.checked = true;
+          const patch = { mic_device: value === '__default' ? null : value };
+          invoke('settings_apply', { patch }).then((c) => {
+            config = c;
+            setStatus('mic-status', 'Microphone re-routed live.', 'ok');
+          }).catch((e) => setStatus('mic-status', e, 'err'));
+        });
+        return el;
+      };
+      list.appendChild(make('Default (system)', '', '__default', !config.mic_device));
+      for (const name of devices) {
+        list.appendChild(make(name, '', name, config.mic_device === name));
+      }
+    }
+
+    // ---- Model ----
+    let models = [];
+    function renderModels() {
+      const list = document.getElementById('model-list');
+      list.innerHTML = '';
+      for (const m of models) {
+        const el = document.createElement('div');
+        el.className = 'model';
+        const active = document.createElement('input');
+        active.type = 'radio'; active.name = 'modelpick';
+        active.checked = config.model_id === m.id;
+        active.addEventListener('change', () => {
+          invoke('settings_apply', { patch: { model_id: m.id } }).then((c) => { config = c; setStatus('model-status', 'Active model changed for next dictation.', 'ok'); }).catch((e) => setStatus('model-status', e, 'err'));
+        });
+        el.appendChild(active);
+        const grow = document.createElement('div');
+        grow.className = 'grow';
+        const name = document.createElement('div');
+        name.className = 'name'; name.textContent = m.name;
+        const meta = document.createElement('div');
+        meta.className = 'meta mono'; meta.textContent = m.id + ' · ' + Math.round(m.size_mb) + ' MB';
+        grow.appendChild(name); grow.appendChild(meta);
+        el.appendChild(grow);
+        const badge = document.createElement('span');
+        badge.className = 'badge ' + (m.downloaded ? 'ok' : 'off');
+        badge.textContent = m.downloaded ? 'Installed' : 'Not installed';
+        el.appendChild(badge);
+        const btn = document.createElement('button');
+        if (m.downloaded) {
+          btn.className = 'ghost danger'; btn.textContent = 'Delete';
+          btn.addEventListener('click', () => deleteModel(m));
+        } else if (busy[m.id]) {
+          btn.className = 'ghost'; btn.disabled = true; btn.textContent = 'Downloading…';
+        } else {
+          btn.className = 'ghost'; btn.textContent = 'Download';
+          btn.addEventListener('click', () => downloadModel(m));
+        }
+        el.appendChild(btn);
+        if (busy[m.id]) {
+          const bar = document.createElement('div');
+          bar.className = 'progress';
+          const fill = document.createElement('i');
+          fill.style.width = (busy[m.id] || 0) + '%';
+          bar.appendChild(fill);
+          el.appendChild(bar);
+        }
+        list.appendChild(el);
+      }
+    }
+    listen('model:progress', (p) => {
+      if (!busy[p.id]) busy[p.id] = 0;
+      busy[p.id] = p.percent;
+      const m = models.find((x) => x.id === p.id);
+      if (m) { m.downloaded = m.downloaded === true; renderModels(); }
+    });
+    function downloadModel(m) {
+      busy[m.id] = 0; renderModels();
+      setStatus('model-status', 'Downloading ' + m.id + '…', 'mute');
+      invoke('model_download', { id: m.id }).then(() => {
+        busy[m.id] = null; delete busy[m.id];
+        m.downloaded = true;
+        renderModels();
+        setStatus('model-status', m.name + ' installed.', 'ok');
+      }).catch((e) => {
+        delete busy[m.id];
+        renderModels();
+        setStatus('model-status', e, 'err');
+      });
+    }
+    function deleteModel(m) {
+      invoke('model_delete', { id: m.id }).then(() => {
+        m.downloaded = false; renderModels();
+        setStatus('model-status', m.name + ' deleted.', 'mute');
+      }).catch((e) => setStatus('model-status', e, 'err'));
+    }
+
+    // ---- Compute ----
+    document.querySelectorAll('input[name="compute"]').forEach((input) => {
+      input.addEventListener('change', () => {
+        if (input.disabled) return;
+        invoke('settings_apply', { patch: { compute_device: input.value } }).then((c) => config = c).catch((e) => setStatus('compute-status', e, 'err'));
+      });
     });
 
-    invoke("settings_get").then((config) => {
-      chord = parseChord(config.hotkey);
-      if (!chord.key) chord.key = " ";
-      document.getElementById("chord").textContent = config.hotkey;
-    }).catch(() => {
-      document.getElementById("chord").textContent = "Ctrl+Shift+Space";
+    // ---- Cleanup ----
+    const keyInput = document.getElementById('cleanup-key');
+    document.getElementById('cleanup-toggle-show').addEventListener('click', () => {
+      keyInput.type = keyInput.type === 'password' ? 'text' : 'password';
     });
+    document.getElementById('cleanup-save').addEventListener('click', () => {
+      const key = keyInput.value.trim();
+      if (!key) { setStatus('cleanup-status', 'Enter a key first.', 'err'); return; }
+      setStatus('cleanup-status', 'Saving to keychain and probing…', 'mute');
+      document.getElementById('cleanup-save').disabled = true;
+      invoke('cleanup_key_save', { key }).then(() => invoke('cleanup_test_key', { key: key })).then((ok) => {
+        document.getElementById('cleanup-save').disabled = false;
+        setStatus('cleanup-status', ok ? 'Key works — cleanup is live.' : 'Key saved.', 'ok');
+      }).catch((e) => {
+        document.getElementById('cleanup-save').disabled = false;
+        setStatus('cleanup-status', e, 'err');
+      });
+    });
+    document.getElementById('cleanup-clear').addEventListener('click', () => {
+      invoke('cleanup_key_delete').then(() => {
+        keyInput.value = '';
+        setStatus('cleanup-status', 'Key removed from the keychain.', 'mute');
+      }).catch((e) => setStatus('cleanup-status', e, 'err'));
+    });
+    function renderPresets() {
+      invoke('cleanup_presets').then((list) => {
+        const sel = document.getElementById('cleanup-preset');
+        sel.innerHTML = '';
+        for (const p of list) {
+          const opt = document.createElement('option');
+          opt.value = p.id; opt.textContent = p.label;
+          sel.appendChild(opt);
+        }
+        sel.value = config.tone_preset;
+        sel.addEventListener('change', () => {
+          invoke('settings_apply', { patch: { tone_preset: sel.value } }).then((c) => config = c).catch((e) => setStatus('cleanup-status', e, 'err'));
+        });
+      }).catch(() => {});
+    }
+    function loadKeyState() {
+      invoke('cleanup_key_status').then((has) => {
+        if (has) setStatus('cleanup-status', 'A key is stored in the keychain.', 'ok');
+      }).catch(() => {});
+    }
+
+    // ---- Insert overrides ----
+    function renderRules() {
+      const list = document.getElementById('rule-list');
+      list.innerHTML = '';
+      (config.insert_overrides || []).forEach((rule, i) => {
+        const el = document.createElement('div');
+        el.className = 'rule';
+        const pat = document.createElement('span');
+        pat.className = 'pat grow'; pat.textContent = rule.pattern;
+        el.appendChild(pat);
+        const sel = document.createElement('select');
+        const a = document.createElement('option'); a.value = 'auto'; a.textContent = 'Auto insert';
+        const b = document.createElement('option'); b.value = 'clip'; b.textContent = 'Clipboard only';
+        sel.appendChild(a); sel.appendChild(b);
+        sel.value = rule.clipboard_only ? 'clip' : 'auto';
+        sel.addEventListener('change', () => {
+          const rules = (config.insert_overrides || []).map((r, j) => j === i ? { pattern: r.pattern, clipboard_only: sel.value === 'clip' } : r);
+          saveRules(rules);
+        });
+        el.appendChild(sel);
+        const del = document.createElement('button');
+        del.className = 'ghost danger'; del.textContent = 'Remove';
+        del.addEventListener('click', () => saveRules((config.insert_overrides || []).filter((_, j) => j !== i)));
+        el.appendChild(del);
+        list.appendChild(el);
+      });
+      if (!(config.insert_overrides || []).length) {
+        const empty = document.createElement('div');
+        empty.className = 'rule';
+        empty.style.color = 'var(--muted)';
+        empty.textContent = 'No overrides — insert tier is decided automatically.';
+        list.appendChild(empty);
+      }
+    }
+    function saveRules(rules) {
+      invoke('settings_apply', { patch: { insert_overrides: rules } }).then((c) => {
+        config = c; renderRules();
+        setStatus('rule-status', 'Overrides applied.', 'ok');
+      }).catch((e) => setStatus('rule-status', e, 'err'));
+    }
+    document.getElementById('rule-add').addEventListener('click', () => {
+      const pattern = document.getElementById('rule-pattern').value.trim();
+      const method = document.getElementById('rule-method').value;
+      if (!pattern) { setStatus('rule-status', 'Enter a window-title pattern.', 'err'); return; }
+      if ((config.insert_overrides || []).some((r) => r.pattern.toLowerCase() === pattern.toLowerCase())) {
+        setStatus('rule-status', 'That pattern already exists.', 'err'); return;
+      }
+      saveRules([...(config.insert_overrides || []), { pattern, clipboard_only: method === 'clip' }]);
+      document.getElementById('rule-pattern').value = '';
+    });
+
+    // ---- Startup & sounds ----
+    document.getElementById('opt-launch').addEventListener('change', async (e) => {
+      try {
+        config = await invoke('settings_apply', { patch: { launch_at_login: e.target.checked } });
+        setStatus('startup-status', 'Launch-at-login applied.', 'ok');
+      } catch (err) { setStatus('startup-status', err, 'err'); e.target.checked = !e.target.checked; }
+    });
+    document.getElementById('opt-sounds').addEventListener('change', async (e) => {
+      try {
+        config = await invoke('settings_apply', { patch: { sounds: e.target.checked } });
+        setStatus('startup-status', 'Sounds applied.', 'ok');
+      } catch (err) { setStatus('startup-status', err, 'err'); e.target.checked = !e.target.checked; }
+    });
+
+    // ---- Diagnostics ----
+    async function refreshLog() {
+      try {
+        document.getElementById('diag-log').value = await invoke('diagnostics_peek');
+      } catch (e) { document.getElementById('diag-log').value = 'no log yet\n' + e; }
+    }
+    document.getElementById('diag-refresh').addEventListener('click', refreshLog);
+    document.getElementById('diag-reveal').addEventListener('click', () => {
+      invoke('diagnostics_reveal').catch((e) => setStatus('diag-status', e, 'err'));
+    });
+
+    // ---- Config reactive ----
+    listen('config:changed', (c) => { config = c; renderAll(c); });
+
+    function renderAll(c) {
+      renderChord();
+      renderMics();
+      renderModels();
+      const compute = document.querySelector('input[name="compute"][value="' + c.compute_device + '"]');
+      if (compute) compute.checked = true;
+      document.getElementById('opt-launch').checked = c.launch_at_login;
+      document.getElementById('opt-sounds').checked = c.sounds;
+      renderPresets();
+      renderRules();
+      loadKeyState();
+    }
+
+    // Boot
+    (async () => {
+      try {
+        window.__micDevices = await invoke('capture_devices');
+      } catch (e) { window.__micDevices = []; }
+      config = await invoke('settings_get');
+      renderAll(config);
+    })();
   </script>
 </body>
 </html>

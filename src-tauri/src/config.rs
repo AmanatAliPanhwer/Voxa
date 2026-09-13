@@ -5,6 +5,22 @@ use std::path::PathBuf;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", default)]
+pub struct InsertOverride {
+    pub pattern: String,
+    pub clipboard_only: bool,
+}
+
+impl Default for InsertOverride {
+    fn default() -> Self {
+        Self {
+            pattern: String::new(),
+            clipboard_only: true,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", default)]
 pub struct Config {
     pub hotkey: String,
     pub recovery_hotkey: String,
@@ -12,6 +28,7 @@ pub struct Config {
     pub model_id: String,
     pub compute_device: String,
     pub tone_preset: String,
+    pub insert_overrides: Vec<InsertOverride>,
     pub launch_at_login: bool,
     pub sounds: bool,
     pub first_run: bool,
@@ -30,6 +47,7 @@ impl Default for Config {
             model_id: "small.en".into(),
             compute_device: "auto".into(),
             tone_preset: "balanced".into(),
+            insert_overrides: Vec::new(),
             launch_at_login: false,
             sounds: false,
             first_run: true,

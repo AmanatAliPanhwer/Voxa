@@ -28,6 +28,7 @@ pub enum Inbound {
     StartHold,
     StopHold,
     ToggleHandsFree,
+    SetMicDevice(Option<String>),
     Arm,
     Disarm,
 }
@@ -54,6 +55,9 @@ pub trait CaptureDevice: Send {
     fn cancel(&mut self);
     fn levels(&mut self) -> Vec<f32>;
     fn take_error(&mut self) -> Option<ErrorInfo>;
+    fn set_mic_device(&mut self, _mic: Option<String>) -> Result<(), ErrorInfo> {
+        Ok(())
+    }
 }
 
 pub trait Transcriber: Send {
@@ -158,6 +162,10 @@ impl Session {
         if self.state == State::Idle {
             self.capture.cancel();
         }
+    }
+
+    pub fn set_mic_device(&mut self, mic: Option<String>) -> Result<(), ErrorInfo> {
+        self.capture.set_mic_device(mic)
     }
 
     pub fn insert_last_result(&mut self) {

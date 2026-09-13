@@ -1,5 +1,7 @@
+use crate::config::InsertOverride;
 use crate::error::{ErrorInfo, ErrorKind};
 use crate::session::{Inserter, InsertOutcome};
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
@@ -26,11 +28,38 @@ fn is_native_wayland() -> bool {
     std::env::var_os("WAYLAND_DISPLAY").is_some()
 }
 
-pub struct ClipboardInserter;
+pub struct ClipboardInserter {
+    overrides: Arc<Mutex<Vec<InsertOverride>>>,
+}
+
+impl ClipboardInserter {
+    pub fn new(overrides: Arc<Mutex<Vec<InsertOverride>>>) -> Self {
+        Self { overrides }
+    }
+
+    fn tier(&self) -> Tier {
+        if let Ok(guard) = self.overrides.lock() {
+            if let Some(desc) = native::window_title_of_frontmost() {
+                let lower = desc.to_lowercase();
+                for rule in guard.iter() {
+                    if lower.contains(&rule.pattern.to_lowercase()) {
+                        return if rule.clipboard_only {
+                            Tier::ClipboardOnly
+                        } else {
+                            Tier::Auto
+                        };
+                    }
+                }
+            }
+        }
+        current_tier()
+    }
+}
 
 impl Inserter for ClipboardInserter {
     fn insert(&self, text: &str) -> Result<InsertOutcome, ErrorInfo> {
-        match current_tier() {
+        let tier = self.tier();
+        match tier {
             Tier::Auto => self.insert_auto(text),
             Tier::ClipboardOnly => self.insert_clipboard_only(text),
         }
@@ -88,6 +117,10 @@ mod native {
         clipboard
             .set_text(text.to_owned())
             .map_err(|e| ErrorInfo::new(ErrorKind::Insert, true, format!("clipboard: {e}")))
+    }
+
+    pub fn window_title_of_frontmost() -> Option<String> {
+        None
     }
 
     pub struct TextSnapshot(String);
@@ -169,6 +202,14 @@ mod native {
         }
         buffer.truncate(buffer.iter().position(|&c| c == 0).unwrap_or(buffer.len()));
         Some(String::from_utf16_lossy(&buffer))
+    }
+
+    pub fn window_title_of_frontmost() -> Option<String> {
+        let window = unsafe { GetForegroundWindow() };
+        if window.0.is_null() {
+            return None;
+        }
+        window_title(window)
     }
 
     fn window_class(window: HWND) -> Option<String> {

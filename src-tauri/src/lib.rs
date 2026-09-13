@@ -1,12 +1,14 @@
 mod capture;
 mod cleanup;
 mod config;
+mod diagnostics;
 mod error;
 mod frontend;
 mod hotkeys;
 mod insert;
 mod model;
 mod session;
+mod sounds;
 mod store;
 mod transcribe;
 
@@ -18,18 +20,31 @@ use tauri::{Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWindowBuilder
 
 struct TauriBroadcast {
     app: tauri::AppHandle,
+    sound: sounds::Sounder,
+    log: diagnostics::Log,
 }
 
 impl Broadcast for TauriBroadcast {
     fn emit(&self, event: Event) {
         let _ = match event {
-            Event::State(state) => self.app.emit("session:state", state),
+            Event::State(state) => {
+                if state == State::Listening {
+                    self.sound.play(sounds::Sound::Start);
+                }
+                self.app.emit("session:state", state)
+            }
             Event::Levels(level) => self.app.emit("session:levels", level),
             Event::Progress { phase, percent } => {
                 self.app.emit("session:progress", serde_json::json!({ "phase": phase, "percent": percent }))
             }
-            Event::Error(err) => self.app.emit("session:error", err),
+            Event::Error(err) => {
+                self.log.line("error", err.kind, &err.detail);
+                self.app.emit("session:error", err)
+            }
             Event::Clip { outcome, target, timestamp } => {
+                if outcome == "inserted" {
+                    self.sound.play(sounds::Sound::Paste);
+                }
                 self.app.emit("session:clip", serde_json::json!({ "outcome": outcome, "target": target, "timestamp": timestamp }))
             }
             Event::Notify { title, body } => {
@@ -63,6 +78,9 @@ async fn session_loop(
                     Inbound::StartHold => session.start_hold(),
                     Inbound::StopHold => session.stop_hold(),
                     Inbound::ToggleHandsFree => session.toggle_hands_free(),
+                    Inbound::SetMicDevice(mic) => {
+                        let _ = session.set_mic_device(mic);
+                    }
                     Inbound::Arm => session.arm(),
                     Inbound::Disarm => session.unarm(),
                 }
@@ -157,6 +175,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_autostart::Builder::new().build())
         .setup(|app| {
             let app_handle = app.handle().clone();
 
@@ -169,11 +188,19 @@ pub fn run() {
             let (state_tx, state_rx) = tokio::sync::watch::channel(State::Idle);
             let (inbox_tx, inbox_rx) = tokio::sync::mpsc::channel::<Inbound>(32);
             let hands_free = std::sync::Arc::new(AtomicBool::new(false));
-
+            let insert_overrides =
+                std::sync::Arc::new(std::sync::Mutex::new(cfg.insert_overrides.clone()));
+            let sounds_enabled = std::sync::Arc::new(AtomicBool::new(cfg.sounds));
             let tone_preset = std::sync::Arc::new(std::sync::Mutex::new(cfg.tone_preset.clone()));
+            let log_dir = app_data.join("logs");
+            let log = diagnostics::Log::new(log_dir.clone());
+            log.raw("voxa started");
+
             let mut session = Session::new(
                 Box::new(TauriBroadcast {
                     app: app_handle.clone(),
+                    sound: sounds::Sounder::new(sounds_enabled.clone()),
+                    log: diagnostics::Log::new(log_dir.clone()),
                 }),
                 Box::new(capture::CpalCapture::new(&cfg)),
                 Box::new(transcribe::WhisperTranscriber::new(
@@ -182,10 +209,12 @@ pub fn run() {
                     cfg.compute_device.clone(),
                     Box::new(TauriBroadcast {
                         app: app_handle.clone(),
+                        sound: sounds::Sounder::new(sounds_enabled.clone()),
+                        log: diagnostics::Log::new(log_dir.clone()),
                     }),
                 )),
                 Box::new(cleanup::GroqCleaner::new(tone_preset.clone())),
-                Box::new(insert::ClipboardInserter),
+                Box::new(insert::ClipboardInserter::new(insert_overrides.clone())),
                 cfg.recovery_hotkey.clone(),
                 Some(state_tx.clone()),
             );
@@ -206,6 +235,10 @@ pub fn run() {
                 })),
             )));
             hotkeys::spawn_ticker(hotkeys.clone());
+            if cfg.launch_at_login {
+                use tauri_plugin_autostart::ManagerExt;
+                let _ = app_handle.autolaunch().enable();
+            }
             app.manage(AppState {
                 inbox: inbox_tx.clone(),
                 state_rx,
@@ -214,6 +247,9 @@ pub fn run() {
                 models_dir: app_data.join("models"),
                 hands_free,
                 tone_preset,
+                insert_overrides,
+                sounds: sounds_enabled,
+                logs_dir: log_dir,
             });
 
             let pill = WebviewWindowBuilder::new(
@@ -344,6 +380,11 @@ pub fn run() {
             frontend::cleanup_key_status,
             frontend::cleanup_key_save,
             frontend::cleanup_key_delete,
+            frontend::capture_devices,
+            frontend::model_download,
+            frontend::model_delete,
+            frontend::diagnostics_peek,
+            frontend::diagnostics_reveal,
             frontend::bubble_stop,
         ])
         .build(tauri::generate_context!())

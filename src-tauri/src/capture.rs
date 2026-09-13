@@ -46,6 +46,18 @@ pub struct CpalCapture {
     stop: Arc<AtomicBool>,
 }
 
+pub fn list_input_devices() -> Vec<String> {
+    let mut names: Vec<String> = cpal::default_host()
+        .input_devices()
+        .into_iter()
+        .flatten()
+        .filter_map(|device| device.description().ok().map(|d| d.name().to_string()))
+        .collect();
+    names.sort();
+    names.dedup();
+    names
+}
+
 impl CpalCapture {
     pub fn new(cfg: &Config) -> Self {
         Self {
@@ -174,6 +186,17 @@ impl CaptureDevice for CpalCapture {
             return Ok(());
         }
         self.open()
+    }
+
+    fn set_mic_device(&mut self, mic: Option<String>) -> Result<(), ErrorInfo> {
+        self.mic_device = mic;
+        if self.stream.is_some() {
+            let was_on = self.clip_on.load(Ordering::SeqCst);
+            self.stop_capture();
+            self.open()?;
+            self.clip_on.store(was_on, Ordering::SeqCst);
+        }
+        Ok(())
     }
 
     fn promote(&mut self) -> Result<(), ErrorInfo> {
