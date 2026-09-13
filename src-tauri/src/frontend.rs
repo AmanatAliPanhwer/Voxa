@@ -12,6 +12,7 @@ pub struct AppState {
     pub hotkeys: std::sync::Arc<std::sync::Mutex<crate::hotkeys::Hotkeys>>,
     pub models_dir: PathBuf,
     pub hands_free: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    pub tone_preset: std::sync::Arc<std::sync::Mutex<String>>,
 }
 
 #[tauri::command]
@@ -121,6 +122,7 @@ pub fn settings_apply(
     }
     if let Some(value) = patch.get("tone_preset").and_then(|v| v.as_str()) {
         cfg.tone_preset = value.to_owned();
+        *state.tone_preset.lock().unwrap() = value.to_owned();
     }
     if let Some(value) = patch.get("mic_device").and_then(|v| v.as_str()) {
         cfg.mic_device = Some(value.to_owned());
@@ -167,7 +169,51 @@ pub fn model_list(state: State<'_, AppState>) -> Vec<ModelInfo> {
         .collect()
 }
 
+#[derive(Clone, Debug, Serialize)]
+pub struct TonePresetInfo {
+    pub id: String,
+    pub label: String,
+}
+
 #[tauri::command]
-pub fn cleanup_test_key() -> Result<bool, String> {
-    Ok(false)
+pub fn cleanup_presets() -> Vec<TonePresetInfo> {
+    crate::cleanup::presets()
+        .iter()
+        .map(|preset| TonePresetInfo {
+            id: preset.id.into(),
+            label: preset.label.into(),
+        })
+        .collect()
+}
+
+#[tauri::command]
+pub fn cleanup_key_status() -> Result<bool, String> {
+    crate::cleanup::load_key()
+        .map(|key| key.map(|k| !k.is_empty()).unwrap_or(false))
+        .map_err(|e| e.detail)
+}
+
+#[tauri::command]
+pub fn cleanup_key_save(key: String) -> Result<(), String> {
+    crate::cleanup::save_key(key.trim()).map_err(|e| e.detail)
+}
+
+#[tauri::command]
+pub fn cleanup_key_delete() -> Result<(), String> {
+    crate::cleanup::delete_key().map_err(|e| e.detail)
+}
+
+#[tauri::command]
+pub async fn cleanup_test_key(key: Option<String>) -> Result<bool, String> {
+    let resolved = match key {
+        Some(provided) => Some(provided),
+        None => crate::cleanup::load_key().map_err(|e| e.detail)?,
+    };
+    let Some(resolved) = resolved else {
+        return Ok(false);
+    };
+    tauri::async_runtime::spawn_blocking(move || crate::cleanup::test_key(&resolved))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.detail)
 }

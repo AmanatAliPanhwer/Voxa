@@ -170,6 +170,7 @@ pub fn run() {
             let (inbox_tx, inbox_rx) = tokio::sync::mpsc::channel::<Inbound>(32);
             let hands_free = std::sync::Arc::new(AtomicBool::new(false));
 
+            let tone_preset = std::sync::Arc::new(std::sync::Mutex::new(cfg.tone_preset.clone()));
             let mut session = Session::new(
                 Box::new(TauriBroadcast {
                     app: app_handle.clone(),
@@ -183,7 +184,7 @@ pub fn run() {
                         app: app_handle.clone(),
                     }),
                 )),
-                Box::new(cleanup::PassthroughCleaner),
+                Box::new(cleanup::GroqCleaner::new(tone_preset.clone())),
                 Box::new(insert::ClipboardInserter),
                 cfg.recovery_hotkey.clone(),
                 Some(state_tx.clone()),
@@ -212,6 +213,7 @@ pub fn run() {
                 hotkeys,
                 models_dir: app_data.join("models"),
                 hands_free,
+                tone_preset,
             });
 
             let pill = WebviewWindowBuilder::new(
@@ -338,6 +340,10 @@ pub fn run() {
             frontend::settings_apply,
             frontend::model_list,
             frontend::cleanup_test_key,
+            frontend::cleanup_presets,
+            frontend::cleanup_key_status,
+            frontend::cleanup_key_save,
+            frontend::cleanup_key_delete,
             frontend::bubble_stop,
         ])
         .build(tauri::generate_context!())
