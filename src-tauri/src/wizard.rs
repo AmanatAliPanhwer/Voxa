@@ -86,15 +86,27 @@ pub fn wizard_download(app: tauri::AppHandle, state: State<'_, AppState>, id: St
     progress.store(0, std::sync::atomic::Ordering::Relaxed);
     std::thread::spawn(move || {
         let result = crate::model::ensure(&models_dir, spec, |p| {
-            progress.store((p * 100.0) as u32, std::sync::atomic::Ordering::Relaxed);
+            progress.store(p as u32, std::sync::atomic::Ordering::Relaxed);
             let _ = app_handle.emit(
                 "wizard:progress",
                 serde_json::json!({ "id": spec.id, "percent": p }),
             );
         });
         downloading.store(false, std::sync::atomic::Ordering::Relaxed);
-        if let Err(e) = result {
-            let _ = app_handle.emit("wizard:error", e.detail);
+        match result {
+            Ok(_) => {
+                let st = app_handle.state::<AppState>();
+                if let Ok(mut cfg) = st.config.lock() {
+                    cfg.model_id = spec.id.to_string();
+                    if let Ok(app_data) = app_handle.path().app_data_dir() {
+                        let _ = crate::config::save(&app_data, &cfg);
+                    }
+                }
+                let _ = app_handle.emit("wizard:done", serde_json::json!({ "id": spec.id }));
+            }
+            Err(e) => {
+                let _ = app_handle.emit("wizard:error", e.detail);
+            }
         }
     });
     Ok(())

@@ -5,36 +5,85 @@
   <title>Voxa</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; background: transparent; overflow: hidden; }
-    body { font: 13px/1.45 system-ui, sans-serif; user-select: none; -webkit-user-select: none; }
+    html, body { height: 100%; width: 100%; background: transparent; overflow: hidden; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+    }
     #pill {
-      position: absolute; inset: 3px;
-      display: flex; align-items: center; justify-content: center;
-      background: rgba(0,0,0,.75);
-      border: 1px solid rgba(255,255,255,.08);
+      position: absolute;
+      inset: 2px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(12, 15, 22, 0.88);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.12);
       border-radius: 14px;
       opacity: 0;
-      transition: opacity .25s ease;
+      transform: scale(0.95);
+      transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1), transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
     }
-    #pill.visible { opacity: 1; }
-    #pill.error { animation: greyPulse 2s ease-in-out infinite; border-color: rgba(251,113,133,.45); }
-    @keyframes greyPulse { 0%,100% { opacity:.55 } 50% { opacity:1 } }
-    #pill.flash { animation: insertFlash .45s ease; }
+    #pill.visible {
+      opacity: 1;
+      transform: scale(1);
+    }
+    #pill.error {
+      border-color: rgba(248, 113, 113, 0.55);
+      box-shadow: 0 0 16px rgba(248, 113, 113, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      animation: gentleWarnPulse 2.2s ease-in-out infinite;
+    }
+    @keyframes gentleWarnPulse {
+      0%, 100% { opacity: 0.85; filter: brightness(1); }
+      50% { opacity: 1; filter: brightness(1.15); }
+    }
+    #pill.flash {
+      animation: insertFlash 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+    }
     @keyframes insertFlash {
-      0%   { box-shadow: 0 0 0 0 rgba(255,255,255,.7), inset 0 0 0 0 rgba(255,255,255,.4); }
-      45%  { box-shadow: 0 0 0 14px rgba(255,255,255,0), inset 0 0 18px 0 rgba(255,255,255,.5); }
-      100% { box-shadow: 0 0 0 0 rgba(255,255,255,0), inset 0 0 0 0 rgba(255,255,255,0); }
+      0%   { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.8), inset 0 0 12px rgba(255, 255, 255, 0.5); }
+      50%  { box-shadow: 0 0 16px 2px rgba(255, 255, 255, 0.35), inset 0 0 20px rgba(255, 255, 255, 0.6); }
+      100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0), inset 0 0 0 rgba(255, 255, 255, 0); }
     }
-    #wave { display: none; align-items: center; justify-content: center; gap: 2px; height: 16px; }
+    #wave {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      height: 18px;
+    }
     #pill.listening #wave { display: flex; }
-    .bar { width: 2px; border-radius: 1px; background: white; height: 2px; }
-    #pill.error .bar { background: rgba(255,255,255,.55); }
-    #spinner { display: none; }
-    #pill.processing #spinner, #pill.inserting #spinner { display: flex; align-items: center; justify-content: center; }
+    .bar {
+      width: 2.5px;
+      border-radius: 1.5px;
+      background: linear-gradient(180deg, #ffffff 0%, rgba(255, 255, 255, 0.75) 100%);
+      height: 3px;
+      box-shadow: 0 0 4px rgba(255, 255, 255, 0.25);
+      transition: height 0.05s ease-out;
+    }
+    #pill.error .bar {
+      background: rgba(248, 113, 113, 0.75);
+      box-shadow: 0 0 4px rgba(248, 113, 113, 0.3);
+    }
+    #spinner {
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    #pill.processing #spinner, #pill.inserting #spinner {
+      display: flex;
+    }
     .arc-spinner {
-      width: 12px; height: 12px;
-      border: 2px solid transparent; border-top-color: rgba(255,255,255,.85);
-      border-radius: 50%; animation: spin .7s linear infinite;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255, 255, 255, 0.15);
+      border-top-color: #ff3848;
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+      box-shadow: 0 0 8px rgba(255, 56, 72, 0.3);
     }
     @keyframes spin { to { transform: rotate(360deg); } }
   </style>
@@ -45,7 +94,7 @@
     <div id="spinner"><div class="arc-spinner"></div></div>
   </div>
   <script>
-    const ENVELOPE = [4,7,10,13,15,16,15,13,10,7,4,7];
+    const ENVELOPE = [4, 7, 11, 14, 16, 18, 16, 14, 11, 7, 4, 6];
     const BARS = 12;
     const pill = document.getElementById('pill');
     const wave = document.getElementById('wave');
@@ -57,25 +106,37 @@
     const bars = Array.from(document.querySelectorAll('.bar'));
     let visible = false;
 
-    function show() { if (!visible) { visible = true; pill.classList.add('visible'); } }
+    function show() {
+      if (!visible) {
+        visible = true;
+        pill.classList.add('visible');
+      }
+    }
     function hide() {
       visible = false;
       pill.classList.remove('visible', 'listening', 'processing', 'inserting', 'error', 'flash');
-      for (const bar of bars) bar.style.height = '2px';
+      for (const bar of bars) bar.style.height = '3px';
     }
     function setLevel(level) {
       const l = Math.max(0, Math.min(1, level));
       for (let i = 0; i < BARS; i++) {
-        bars[i].style.height = Math.max(2, Math.round(ENVELOPE[i] * l)) + 'px';
+        bars[i].style.height = Math.max(3, Math.round(ENVELOPE[i] * l)) + 'px';
       }
     }
 
     const __TAURI__ = window.__TAURI__;
-    function listen(event, handler) { __TAURI__.event.listen(event, e => handler(e.payload)); }
+    function listen(event, handler) {
+      if (__TAURI__ && __TAURI__.event) {
+        __TAURI__.event.listen(event, e => handler(e.payload));
+      }
+    }
 
     listen('session:state', (state) => {
       pill.classList.remove('listening', 'processing', 'inserting', 'error', 'flash');
-      if (state === 'idle') { hide(); return; }
+      if (state === 'idle') {
+        hide();
+        return;
+      }
       show();
       if (state === 'listening') {
         pill.classList.add('listening');

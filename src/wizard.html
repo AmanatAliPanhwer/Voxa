@@ -5,236 +5,753 @@
   <title>Voxa Setup</title>
   <style>
     :root {
-      --red: #ec3b33;
-      --bg: #0b0d12;
-      --panel: #131720;
-      --panel-2: #1a1f2b;
-      --ink: #e7ecf5;
-      --dim: #8b93a7;
-      --muted: #5b6377;
-      --line: #262c3a;
+      --red: #ff3848;
+      --red-glow: rgba(255, 56, 72, 0.35);
+      --red-dim: rgba(255, 56, 72, 0.12);
+      --bg: #090a0f;
+      --panel: rgba(18, 22, 32, 0.7);
+      --panel-hover: rgba(26, 32, 46, 0.85);
+      --panel-border: rgba(255, 255, 255, 0.08);
+      --panel-border-focus: rgba(255, 56, 72, 0.5);
+      --ink: #f0f3fa;
+      --dim: #9aa3b8;
+      --muted: #5e667d;
+      --green: #34d399;
+      --green-glow: rgba(52, 211, 153, 0.25);
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; }
+    html, body {
+      height: 100%; width: 100%;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+      font-size: 13px;
+      line-height: 1.5;
+      user-select: none;
+      -webkit-user-select: none;
+      overflow: hidden;
+    }
     body {
-      background: var(--bg); color: var(--ink);
-      font: 13px/1.5 system-ui, sans-serif;
-      display: flex; flex-direction: column; user-select: none;
+      display: flex;
+      flex-direction: column;
+      background: radial-gradient(circle at 50% 0%, rgba(255, 56, 72, 0.09) 0%, transparent 65%), var(--bg);
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 26px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
     }
     .brand {
-      display: flex; align-items: center; gap: 9px;
-      padding: 16px 22px 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
-    .mark { display: flex; gap: 3px; align-items: flex-end; height: 16px; }
-    .mark i { width: 3px; background: var(--red); border-radius: 1px; }
-    .brand span { font-size: 13px; letter-spacing: .16em; text-transform: uppercase; font-weight: 600; }
-    .steps { display: flex; gap: 6px; padding: 6px 22px 14px; }
-    .step-dot {
-      flex: 1; height: 4px; border-radius: 2px; background: var(--panel-2);
-      position: relative; overflow: hidden;
+    .wave-logo {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      height: 18px;
     }
-    .step-dot::after {
-      content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 0;
-      background: var(--red); transition: width .25s ease;
+    .wave-logo i {
+      width: 3.5px;
+      background: var(--red);
+      border-radius: 2px;
+      box-shadow: 0 0 8px var(--red-glow);
+      animation: wavePulse 1.8s ease-in-out infinite alternate;
     }
-    .step-dot.on::after { width: 100%; }
-    .step-dot.done::after { width: 100%; background: #6fd8a0; }
-    .step-num {
-      position: absolute; right: -2px; top: -10px;
-      font-size: 9px; color: var(--muted); font-family: ui-monospace, monospace;
+    .wave-logo i:nth-child(1) { height: 8px; animation-delay: 0.1s; }
+    .wave-logo i:nth-child(2) { height: 16px; animation-delay: 0.3s; }
+    .wave-logo i:nth-child(3) { height: 12px; animation-delay: 0.2s; }
+    .wave-logo i:nth-child(4) { height: 18px; animation-delay: 0.4s; }
+    .wave-logo i:nth-child(5) { height: 10px; animation-delay: 0.15s; }
+    @keyframes wavePulse {
+      0% { transform: scaleY(0.7); }
+      100% { transform: scaleY(1.15); }
     }
-    main { flex: 1; overflow-y: auto; padding: 6px 22px 22px; }
-    .pane { display: none; }
-    .pane.active { display: block; }
+    .brand-name {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #fff;
+    }
+    .version-tag {
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      padding: 2px 7px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      color: var(--dim);
+      font-family: ui-monospace, Consolas, monospace;
+    }
+    /* Steps Bar */
+    .steps-container {
+      display: flex;
+      gap: 8px;
+      padding: 12px 26px;
+    }
+    .step-segment {
+      flex: 1;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.07);
+      border-radius: 2px;
+      position: relative;
+      overflow: hidden;
+      transition: background 0.2s ease;
+    }
+    .step-segment.active {
+      background: var(--red);
+      box-shadow: 0 0 10px var(--red-glow);
+    }
+    .step-segment.completed {
+      background: var(--green);
+    }
+    /* Main Content Area */
+    main {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px 26px 20px;
+      display: flex;
+      flex-direction: column;
+    }
+    .pane {
+      display: none;
+      animation: fadeIn 0.25s ease-out forwards;
+    }
+    .pane.active {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
     h2 {
-      font-size: 20px; font-weight: 700; margin-bottom: 6px; letter-spacing: -.01em;
+      font-size: 21px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #fff;
+      margin-bottom: 4px;
     }
-    .sub { color: var(--dim); font-size: 13px; margin-bottom: 22px; }
-    .touch { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
-    .label { display: block; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
-    .kbd {
-      display: inline-block; font-family: ui-monospace, Consolas, monospace; font-size: 13px;
-      background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px;
-      padding: 3px 10px; color: var(--ink);
+    .sub {
+      font-size: 13px;
+      color: var(--dim);
+      margin-bottom: 18px;
     }
-    .row { margin-bottom: 18px; }
-    .field { display: flex; gap: 8px; align-items: center; }
-    .hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
-    .status { margin-top: 10px; font-size: 12px; min-height: 18px; }
-    .status.ok { color: #6fd8a0; }
-    .status.err { color: #e98c86; }
-    .status.mute { color: var(--muted); }
-    .progress { height: 6px; border-radius: 3px; background: var(--panel-2); overflow: hidden; margin-top: 8px; }
-    .progress > i { display: block; height: 100%; width: 0; background: var(--red); border-radius: 3px; transition: width .15s ease; }
-    .switch { display: flex; align-items: center; gap: 12px; }
-    .switch input { width: 36px; height: 20px; appearance: none; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; position: relative; cursor: pointer; }
-    .switch input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--dim); transition: .15s ease; }
-    .switch input:checked { background: var(--red); border-color: var(--red); }
-    .switch input:checked::after { left: 20px; background: #fff; }
-    .radio { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 7px; cursor: pointer; }
-    .radio:hover { background: var(--panel-2); }
-    .radio input { accent-color: var(--red); }
-    .radio.empty { opacity: .55; }
-    .radio .sub { color: var(--muted); font-size: 11px; }
-    button.primary, button.ghost {
-      font: inherit; font-size: 12px; letter-spacing: .04em; border-radius: 7px;
-      padding: 8px 16px; cursor: pointer; border: 1px solid transparent;
-    }
-    button.primary { background: var(--red); color: #fff; }
-    button.primary:hover { filter: brightness(1.08); }
-    button.primary:disabled { opacity: .45; cursor: default; filter: none; }
-    button.ghost { background: var(--panel-2); border-color: var(--line); color: var(--ink); }
-    button.ghost:hover { border-color: #39415a; }
-    .nav { display: flex; justify-content: space-between; padding: 16px 22px; gap: 10px; }
-    .big { font-size: 15px; padding: 10px 24px; }
-    .center { justify-content: center; }
-    select {
-      font: inherit; color: var(--ink);
-      background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px;
-      padding: 8px 10px; width: 100%;
-    }
-    select:focus { outline: none; border-color: var(--red); }
-    .welcome-mark { margin-bottom: 18px; }
-    .welcome-mark .mark { height: 32px; }
-    .welcome-mark .mark i { width: 5px; height: 16px 9px 18px 10px 14px; }
     .card {
-      background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
-      padding: 16px; margin-bottom: 12px;
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      padding: 16px 18px;
+      margin-bottom: 12px;
+      backdrop-filter: blur(12px);
+      transition: border-color 0.2s ease, background 0.2s ease;
     }
-    .card .kbd { font-size: 15px; padding: 5px 14px; }
-    .card p { color: var(--dim); font-size: 13px; margin-top: 8px; }
-    .all-done { text-align: center; padding-top: 22px; }
-    .check { width: 56px; height: 56px; border-radius: 50%; background: rgba(111,216,160,.12); color: #6fd8a0;
-      display: inline-flex; align-items: center; justify-content: center; font-size: 26px; margin-bottom: 16px; }
+    .card:hover {
+      border-color: rgba(255, 255, 255, 0.14);
+    }
+    .label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    /* Keycap styling */
+    .keycap-display {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 8px 0 12px;
+    }
+    .keycap-chord {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .keycap {
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      font-size: 13px;
+      font-weight: 600;
+      background: linear-gradient(180deg, #1f2533 0%, #131722 100%);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-bottom: 2px solid rgba(0, 0, 0, 0.6);
+      box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      border-radius: 7px;
+      padding: 5px 12px;
+      color: #fff;
+    }
+    .recording-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--red);
+      animation: pulse 1.2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    /* Buttons */
+    button {
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 8px;
+      padding: 9px 18px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.18s ease;
+      border: 1px solid transparent;
+      outline: none;
+    }
+    button:active {
+      transform: scale(0.98);
+    }
+    button.primary {
+      background: linear-gradient(180deg, #ff4554 0%, #eb2f3f 100%);
+      color: #fff;
+      box-shadow: 0 4px 14px var(--red-glow);
+    }
+    button.primary:hover:not(:disabled) {
+      filter: brightness(1.1);
+      box-shadow: 0 6px 20px var(--red-glow);
+    }
+    button.primary:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+    button.ghost {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.1);
+      color: var(--ink);
+    }
+    button.ghost:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.18);
+    }
+    button.ghost:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    button.success {
+      background: rgba(52, 211, 153, 0.15);
+      border-color: rgba(52, 211, 153, 0.35);
+      color: var(--green);
+    }
+    /* Switch component */
+    .switch-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 0;
+    }
+    .switch-desc {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .switch-desc .title {
+      font-size: 13px;
+      font-weight: 500;
+      color: #fff;
+    }
+    .switch-desc .hint {
+      font-size: 11px;
+      color: var(--dim);
+    }
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 40px;
+      height: 22px;
+      flex-shrink: 0;
+    }
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      inset: 0;
+      background-color: rgba(255, 255, 255, 0.12);
+      border-radius: 22px;
+      transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 3px;
+      bottom: 3px;
+      background-color: #fff;
+      border-radius: 50%;
+      transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+    input:checked + .slider {
+      background-color: var(--red);
+      box-shadow: 0 0 10px var(--red-glow);
+    }
+    input:checked + .slider:before {
+      transform: translateX(18px);
+    }
+    /* Model Cards Grid */
+    .model-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+      margin-bottom: 12px;
+    }
+    .model-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 14px;
+      border-radius: 10px;
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .model-card:hover {
+      background: var(--panel-hover);
+      border-color: rgba(255, 255, 255, 0.16);
+    }
+    .model-card.selected {
+      border-color: var(--red);
+      background: rgba(255, 56, 72, 0.07);
+      box-shadow: 0 0 14px rgba(255, 56, 72, 0.15);
+    }
+    .model-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .model-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .model-meta {
+      font-size: 11px;
+      color: var(--dim);
+    }
+    .badge {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 8px;
+      letter-spacing: 0.03em;
+    }
+    .badge-installed {
+      background: rgba(52, 211, 153, 0.14);
+      color: var(--green);
+      border: 1px solid rgba(52, 211, 153, 0.3);
+    }
+    .badge-recommend {
+      background: var(--red-dim);
+      color: var(--red);
+      border: 1px solid rgba(255, 56, 72, 0.25);
+    }
+    .badge-size {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--dim);
+    }
+    /* Progress bar */
+    .progress-wrap {
+      margin-top: 14px;
+      background: rgba(0, 0, 0, 0.35);
+      border-radius: 10px;
+      padding: 12px 14px;
+      border: 1px solid var(--panel-border);
+    }
+    .progress-bar-bg {
+      height: 6px;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.08);
+      overflow: hidden;
+      margin: 8px 0;
+      position: relative;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #ff4554, #eb2f3f);
+      border-radius: 3px;
+      transition: width 0.2s ease;
+      box-shadow: 0 0 10px var(--red-glow);
+    }
+    .progress-status {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--dim);
+    }
+    /* Bottom Navigation */
+    .footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 26px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      background: rgba(13, 16, 24, 0.85);
+      backdrop-filter: blur(12px);
+    }
+    /* Feature Highlights */
+    .feature-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 16px;
+    }
+    .feature-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 10px;
+    }
+    .feature-icon {
+      font-size: 16px;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.07);
+    }
+    .feature-text {
+      display: flex;
+      flex-direction: column;
+    }
+    .feature-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #fff;
+    }
+    .feature-desc {
+      font-size: 11px;
+      color: var(--dim);
+    }
+    .success-badge {
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      background: var(--green-glow);
+      border: 2px solid var(--green);
+      color: var(--green);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      margin: 20px auto 14px;
+      box-shadow: 0 0 25px var(--green-glow);
+    }
+    .status-msg {
+      font-size: 12px;
+      margin-top: 8px;
+      min-height: 18px;
+    }
+    .status-msg.ok { color: var(--green); }
+    .status-msg.err { color: #f87171; }
+    .status-msg.mute { color: var(--dim); }
   </style>
 </head>
 <body>
-  <div class="brand">
-    <div class="mark"><i></i><i></i><i></i><i></i><i></i></div>
-    <span>Voxa</span>
-  </div>
-  <div class="steps" id="steps"></div>
-  <main>
-    <section class="pane active" data-pane="0">
-      <div class="all-done">
-        <div class="welcome-mark"><div class="mark"><i style="height:16px"></i><i style="height:22px"></i><i style="height:26px"></i><i style="height:22px"></i><i style="height:16px"></i></div></div>
-        <h2>Welcome to Voxa</h2>
-        <p class="sub">Your local-first dictation app. A few quick steps and you are ready.</p>
-      </div>
-    </section>
 
-    <section class="pane" data-pane="1">
-      <h2>Choose your hotkey</h2>
-      <p class="sub">Hold to dictate. A quick double-tap turns hands-free on.</p>
-      <div class="touch">
-        <span class="label">Current chord</span>
-        <div class="field">
-          <span class="kbd" id="hotkey-chord">–</span>
-          <button class="ghost" id="hotkey-record">Change</button>
-          <span class="hint mono" id="hotkey-echo"></span>
+  <!-- Top Header -->
+  <div class="header">
+    <div class="brand">
+      <div class="wave-logo">
+        <i></i><i></i><i></i><i></i><i></i>
+      </div>
+      <span class="brand-name">Voxa</span>
+    </div>
+    <span class="version-tag">Wispr-Grade Dictation</span>
+  </div>
+
+  <!-- Segmented Step Progress Bar -->
+  <div class="steps-container" id="steps-container">
+    <div class="step-segment active" data-step="0"></div>
+    <div class="step-segment" data-step="1"></div>
+    <div class="step-segment" data-step="2"></div>
+    <div class="step-segment" data-step="3"></div>
+    <div class="step-segment" data-step="4"></div>
+  </div>
+
+  <main>
+    <!-- Step 0: Welcome -->
+    <section class="pane active" data-pane="0">
+      <h2>Welcome to Voxa</h2>
+      <p class="sub">Ultra-low latency dictation that never sends your voice to the cloud.</p>
+      
+      <div class="feature-grid">
+        <div class="feature-item">
+          <div class="feature-icon">🔒</div>
+          <div class="feature-text">
+            <span class="feature-title">100% Local Whisper Inference</span>
+            <span class="feature-desc">All voice-to-text happens entirely on your device's CPU or GPU.</span>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">⚡</div>
+          <div class="feature-text">
+            <span class="feature-title">Native Text Auto-Insertion</span>
+            <span class="feature-desc">Transcribed text lands instantly wherever your text cursor is blinking.</span>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">✨</div>
+          <div class="feature-text">
+            <span class="feature-title">Intelligent Punctuation & Polish</span>
+            <span class="feature-desc">Optional fast AI cleanup fixes typos, grammar, and removes filler words.</span>
+          </div>
         </div>
       </div>
-      <p class="hint">The bubble next to the pill stops hands-free. You can change the chord in Settings later.</p>
-      <div class="status mute" id="hotkey-status"></div>
     </section>
 
+    <!-- Step 1: Hotkey Setup -->
+    <section class="pane" data-pane="1">
+      <h2>Your Activation Hotkey</h2>
+      <p class="sub">Hold to speak, release to insert. Double-tap to activate hands-free dictation.</p>
+
+      <div class="card">
+        <span class="label">Current Global Shortcut</span>
+        <div class="keycap-display">
+          <div class="keycap-chord" id="keycap-container">
+            <span class="keycap" id="hotkey-label">Ctrl + Shift + Space</span>
+          </div>
+          <button class="ghost" id="btn-change-hotkey">Change</button>
+          <span class="recording-indicator" id="hotkey-recording" style="display:none;">● Press shortcut keys...</span>
+        </div>
+        <div class="status-msg mute" id="hotkey-status">Press any key combination while recording to rebind.</div>
+      </div>
+
+      <div class="card" style="background: rgba(255, 255, 255, 0.02);">
+        <span class="label">Interaction Models</span>
+        <p style="font-size:12px; color:var(--dim); line-height:1.6;">
+          • <strong>Hold-to-Talk</strong>: Hold down the shortcut, speak your thoughts, and release to transcribe and insert.<br>
+          • <strong>Hands-Free</strong>: Double-tap quickly to start hands-free mode. A red Stop bubble appears next to the pill to stop at any time.
+        </p>
+      </div>
+    </section>
+
+    <!-- Step 2: Preferences -->
     <section class="pane" data-pane="2">
-      <h2>Optional settings</h2>
-      <p class="sub">Skip any of these — none of them block dictation.</p>
-      <div class="touch">
-        <label class="switch">
-          <input type="checkbox" id="opt-launch">
-          <span class="label" style="margin:0">Launch at login</span>
-        </label>
-        <label class="switch" style="margin-top:16px">
-          <input type="checkbox" id="opt-sounds">
-          <span class="label" style="margin:0">Sounds</span>
-        </label>
+      <h2>System Preferences</h2>
+      <p class="sub">Configure startup behavior and compute options.</p>
+
+      <div class="card">
+        <div class="switch-row">
+          <div class="switch-desc">
+            <span class="title">Launch at Login</span>
+            <span class="hint">Automatically start Voxa in background tray on Windows startup.</span>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="opt-launch">
+            <span class="slider"></span>
+          </label>
+        </div>
+        
+        <div style="height:1px; background:rgba(255,255,255,0.05); margin:12px 0;"></div>
+
+        <div class="switch-row">
+          <div class="switch-desc">
+            <span class="title">Sound Feedback</span>
+            <span class="hint">Play subtle audio cues when dictation begins and completes.</span>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="opt-sounds">
+            <span class="slider"></span>
+          </label>
+        </div>
       </div>
-      <div class="touch" style="margin-top:14px">
-        <span class="label">Compute device</span>
-        <label class="radio"><input type="radio" name="compute" value="auto" checked><span><span class="label" style="margin:0">Auto</span><span class="sub" style="display:block">Let Voxa choose</span></span></label>
-        <label class="radio"><input type="radio" name="compute" value="cpu"><span><span class="label" style="margin:0">CPU</span><span class="sub" style="display:block">Always available</span></span></label>
-        <label class="radio empty"><input type="radio" name="compute" value="gpu" disabled><span><span class="label" style="margin:0">GPU</span><span class="sub" style="display:block">Ships in a later v1 build on Windows &amp; Linux</span></span></label>
+
+      <div class="card">
+        <span class="label">Inference Compute Acceleration</span>
+        <div style="display:flex; gap:10px; margin-top:6px;">
+          <label style="flex:1; display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.03); padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.08); cursor:pointer;">
+            <input type="radio" name="compute" value="auto" checked style="accent-color:var(--red);">
+            <div>
+              <div style="font-weight:600; font-size:12px;">Auto</div>
+              <div style="font-size:11px; color:var(--dim);">Recommended</div>
+            </div>
+          </label>
+          <label style="flex:1; display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.03); padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.08); cursor:pointer;">
+            <input type="radio" name="compute" value="cpu" style="accent-color:var(--red);">
+            <div>
+              <div style="font-weight:600; font-size:12px;">CPU</div>
+              <div style="font-size:11px; color:var(--dim);">Pure CPU</div>
+            </div>
+          </label>
+        </div>
       </div>
     </section>
 
+    <!-- Step 3: Model Download -->
     <section class="pane" data-pane="3">
-      <h2>Pick your model</h2>
-      <p class="sub">The larger the model, the more accurate — and the slower to download.</p>
-      <div class="touch">
-        <span class="label">Whisper model</span>
-        <select id="model-select"></select>
-        <div class="progress" style="margin-top:14px"><i id="model-bar"></i></div>
-        <div class="status mute" id="model-status"></div>
-        <button class="ghost" id="model-btn" style="margin-top:10px">Download</button>
+      <h2>Whisper Model Setup</h2>
+      <p class="sub">Pick a speech model. It will be downloaded directly to your local library.</p>
+
+      <div class="model-cards" id="model-cards-container">
+        <!-- Injected via JavaScript -->
+      </div>
+
+      <div class="progress-wrap">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span class="label" style="margin:0;">Download Status</span>
+          <button class="primary" id="btn-download-action" style="padding:6px 14px; font-size:12px;">Download Model</button>
+        </div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="model-progress-bar"></div>
+        </div>
+        <div class="progress-status">
+          <span id="model-status-text">Ready to download</span>
+          <span id="model-percent-text">0%</span>
+        </div>
       </div>
     </section>
 
+    <!-- Step 4: All Set -->
     <section class="pane" data-pane="4">
-      <div class="all-done">
-        <div class="check">&#10003;</div>
-        <h2>All set</h2>
-        <p class="sub">Voxa is configured and ready to dictate.</p>
-        <button class="primary big" id="done-btn">Get started</button>
+      <div style="text-align:center; padding-top:10px;">
+        <div class="success-badge">✓</div>
+        <h2>You are Ready to Dictate</h2>
+        <p class="sub" style="max-width:340px; margin:0 auto 20px;">Voxa is armed and docked at the bottom of your screen.</p>
+        
+        <div class="card" style="text-align:left; max-width:380px; margin:0 auto 16px;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+            <span style="color:var(--dim);">Dictate</span>
+            <strong id="final-hotkey-echo">Ctrl + Shift + Space</strong>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+            <span style="color:var(--dim);">Re-insert Last</span>
+            <strong>Ctrl + Alt + V</strong>
+          </div>
+          <div style="display:flex; justify-content:space-between;">
+            <span style="color:var(--dim);">Settings</span>
+            <span>System Tray Menu</span>
+          </div>
+        </div>
       </div>
     </section>
   </main>
-  <div class="nav">
-    <button class="ghost" id="btn-back" style="visibility:hidden">Back</button>
-    <button class="primary" id="btn-next">Next</button>
+
+  <!-- Bottom Navigation -->
+  <div class="footer">
+    <button class="ghost" id="btn-nav-back" style="visibility:hidden;">Back</button>
+    <button class="primary" id="btn-nav-next">Continue</button>
   </div>
 
   <script>
     const invoke = window.__TAURI__.core.invoke;
     const listen = (event, handler) => window.__TAURI__.event.listen(event, (e) => handler(e.payload));
 
-    let step = 0;
-    const total = 5;
-    let recording = false;
-    let downloading = false;
+    let currentStep = 0;
+    const totalSteps = 5;
+    let isRecordingHotkey = false;
+    let isDownloading = false;
+    let selectedModelId = 'small.en';
+    let availableModels = [];
 
-    function $(id) { return document.getElementById(id); }
-    function showPane(n) {
-      document.querySelectorAll('.pane').forEach((p) => p.classList.toggle('active', +p.dataset.pane === n));
-      $('btn-back').style.visibility = n > 0 ? 'visible' : 'hidden';
-      $('btn-next').textContent = n === total - 1 ? 'Get started' : 'Next';
-      renderDots();
-    }
-    function renderDots() {
-      $('steps').innerHTML = '';
-      for (let i = 0; i < total; i++) {
-        const d = document.createElement('div');
-        d.className = 'step-dot' + (i < step ? ' done' : '') + (i === step ? ' on' : '');
-        const span = document.createElement('span');
-        span.className = 'step-num'; span.textContent = i + 1;
-        d.appendChild(span);
-        $('steps').appendChild(d);
+    const MODEL_DESCRIPTIONS = {
+      'tiny.en': { desc: 'Lightning fast inference, low RAM', badge: '⚡ Ultra-Fast' },
+      'base.en': { desc: 'Great speed with solid accuracy', badge: '⚖️ Balanced' },
+      'small.en': { desc: 'Sweet spot of accuracy & responsiveness', badge: '⭐ Recommended' },
+      'medium.en': { desc: 'Highest accuracy for complex phrasing', badge: '🎯 Pro Accuracy' }
+    };
+
+    function updateStepUI(step) {
+      currentStep = step;
+      document.querySelectorAll('.pane').forEach(p => p.classList.toggle('active', +p.dataset.pane === step));
+      document.querySelectorAll('.step-segment').forEach((seg, idx) => {
+        seg.classList.toggle('completed', idx < step);
+        seg.classList.toggle('active', idx === step);
+      });
+
+      const btnBack = document.getElementById('btn-nav-back');
+      const btnNext = document.getElementById('btn-nav-next');
+      btnBack.style.visibility = step > 0 ? 'visible' : 'hidden';
+
+      if (step === totalSteps - 1) {
+        btnNext.textContent = 'Launch Voxa';
+        btnNext.className = 'primary';
+      } else if (step === 3) {
+        btnNext.textContent = 'Next';
+        checkCanProceedModel();
+      } else {
+        btnNext.textContent = 'Continue';
+        btnNext.disabled = false;
       }
     }
-    function setStatus(id, text, cls) {
-      const el = $(id);
-      el.textContent = text;
-      el.className = 'status ' + (cls || 'mute');
+
+    function checkCanProceedModel() {
+      const btnNext = document.getElementById('btn-nav-next');
+      const currentModel = availableModels.find(m => m.id === selectedModelId);
+      const anyDownloaded = availableModels.some(m => m.downloaded);
+      if (isDownloading) {
+        btnNext.disabled = true;
+      } else {
+        // Can proceed if current model is downloaded or at least one model exists
+        btnNext.disabled = !anyDownloaded && !(currentModel && currentModel.downloaded);
+      }
     }
 
-    $('btn-back').addEventListener('click', () => { if (step > 0) { step--; showPane(step); refresh(); } });
-    $('btn-next').addEventListener('click', () => {
-      if (step === total - 1) { invoke('wizard_close_cmd'); return; }
-      if (step === 3 && downloading) return;
-      step++;
-      showPane(step);
-      if (step === 3) refreshModels();
-      refresh();
+    document.getElementById('btn-nav-back').addEventListener('click', () => {
+      if (currentStep > 0) updateStepUI(currentStep - 1);
     });
 
-    // Hotkey change-in-place
-    let pendingHotkey = null;
+    document.getElementById('btn-nav-next').addEventListener('click', () => {
+      if (currentStep === totalSteps - 1) {
+        invoke('wizard_close_cmd').catch(() => {});
+        return;
+      }
+      if (currentStep === 3 && isDownloading) return;
+      updateStepUI(currentStep + 1);
+    });
+
+    // Hotkey Recorder
+    const btnChangeHotkey = document.getElementById('btn-change-hotkey');
+    const recIndicator = document.getElementById('hotkey-recording');
+    const hotkeyStatus = document.getElementById('hotkey-status');
+
+    btnChangeHotkey.addEventListener('click', () => {
+      isRecordingHotkey = !isRecordingHotkey;
+      btnChangeHotkey.textContent = isRecordingHotkey ? 'Cancel' : 'Change';
+      recIndicator.style.display = isRecordingHotkey ? 'inline-flex' : 'none';
+      hotkeyStatus.textContent = isRecordingHotkey ? 'Listening for your keyboard chord...' : 'Press change to record a new chord.';
+    });
+
     document.addEventListener('keydown', (e) => {
-      if (!recording) return;
-      e.preventDefault(); e.stopPropagation();
+      if (!isRecordingHotkey) return;
+      e.preventDefault();
+      e.stopPropagation();
+
       if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return;
       if (!e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey) return;
+
       const parts = [];
       if (e.ctrlKey) parts.push('Ctrl');
       if (e.altKey) parts.push('Alt');
@@ -242,92 +759,166 @@
       if (e.metaKey) parts.push('Cmd');
       const key = e.key === ' ' ? 'Space' : e.key.length === 1 ? e.key.toUpperCase() : e.key;
       parts.push(key);
-      recording = false;
-      $('hotkey-record').textContent = 'Change';
-      $('hotkey-echo').textContent = '';
+
       const chord = parts.join('+');
+      isRecordingHotkey = false;
+      btnChangeHotkey.textContent = 'Change';
+      recIndicator.style.display = 'none';
+
       invoke('settings_apply', { patch: { hotkey: chord } }).then((cfg) => {
-        $('hotkey-chord').textContent = cfg.hotkey;
-        setStatus('hotkey-status', 'Chord applied live.', 'ok');
+        document.getElementById('hotkey-label').textContent = cfg.hotkey.replace(/\+/g, ' + ');
+        document.getElementById('final-hotkey-echo').textContent = cfg.hotkey.replace(/\+/g, ' + ');
+        hotkeyStatus.textContent = 'Shortcut registered successfully.';
+        hotkeyStatus.className = 'status-msg ok';
       }).catch((err) => {
-        setStatus('hotkey-status', 'Reserved: ' + err, 'err');
+        hotkeyStatus.textContent = 'Shortcut conflict: ' + err;
+        hotkeyStatus.className = 'status-msg err';
       });
     });
-    $('hotkey-record').addEventListener('click', () => {
-      recording = !recording;
-      $('hotkey-record').textContent = recording ? 'Press chord…' : 'Change';
-      $('hotkey-echo').textContent = recording ? 'press your chord' : '';
-    });
 
-    // Optional settings
-    $('opt-launch').addEventListener('change', async (e) => {
-      try { await invoke('settings_apply', { patch: { launch_at_login: e.target.checked } }); } catch (err) { setStatus('opt-status', err, 'err'); e.target.checked = !e.target.checked; } });
-    $('opt-sounds').addEventListener('change', async (e) => {
-      try { await invoke('settings_apply', { patch: { sounds: e.target.checked } }); } catch (err) { setStatus('opt-status', err, 'err'); e.target.checked = !e.target.checked; } });
-    document.querySelectorAll('input[name="compute"]').forEach((input) => {
+    // Preferences
+    document.getElementById('opt-launch').addEventListener('change', async (e) => {
+      invoke('settings_apply', { patch: { launch_at_login: e.target.checked } }).catch(() => {});
+    });
+    document.getElementById('opt-sounds').addEventListener('change', async (e) => {
+      invoke('settings_apply', { patch: { sounds: e.target.checked } }).catch(() => {});
+    });
+    document.querySelectorAll('input[name="compute"]').forEach(input => {
       input.addEventListener('change', () => {
-        if (input.disabled) return;
         invoke('settings_apply', { patch: { compute_device: input.value } }).catch(() => {});
       });
     });
 
-    // Model
-    function refreshModels() {
-      invoke('model_list_wizard').then((models) => {
-        const sel = $('model-select');
-        sel.innerHTML = '';
-        for (const m of models) {
-          const opt = document.createElement('option');
-          opt.value = m.id; opt.textContent = m.name + ' · ' + m.size_mb + ' MB' + (m.downloaded ? ' (installed)' : '');
-          sel.appendChild(opt);
-        }
-        const cfg = window.__lastConfig || {};
-        sel.value = cfg.selected_model || models[0]?.id || '';
-        downloading = models.some((m) => m.downloaded === false);
-        $('model-btn').disabled = downloading || !models.length;
-        $('model-btn').textContent = downloading ? 'Downloading…' : 'Download';
-      }).catch(() => {});
+    // Models List & Download
+    function renderModelCards(models) {
+      availableModels = models;
+      const container = document.getElementById('model-cards-container');
+      container.innerHTML = '';
+
+      models.forEach(m => {
+        const meta = MODEL_DESCRIPTIONS[m.id] || { desc: '', badge: '' };
+        const card = document.createElement('div');
+        card.className = 'model-card' + (m.id === selectedModelId ? ' selected' : '');
+        card.onclick = () => selectModel(m.id);
+
+        card.innerHTML = `
+          <div class="model-info">
+            <div class="model-name">
+              <span>${m.name}</span>
+              ${meta.badge ? `<span class="badge ${m.id === 'small.en' ? 'badge-recommend' : 'badge-size'}">${meta.badge}</span>` : ''}
+              ${m.downloaded ? '<span class="badge badge-installed">Installed ✓</span>' : ''}
+            </div>
+            <div class="model-meta">${meta.desc} · ${m.size_mb} MB</div>
+          </div>
+          <div style="font-size:16px;">${m.id === selectedModelId ? '🔘' : '⚪'}</div>
+        `;
+        container.appendChild(card);
+      });
+
+      updateDownloadButtonState();
+      checkCanProceedModel();
     }
-    $('model-btn').addEventListener('click', () => {
-      const id = $('model-select').value;
-      if (!id || downloading) return;
-      downloading = true;
-      $('model-btn').disabled = true;
-      $('model-btn').textContent = 'Downloading…';
-      setStatus('model-status', 'Downloading…', 'mute');
-      invoke('wizard_download_cmd', { id }).catch((err) => {
-        downloading = false;
-        setStatus('model-status', err, 'err');
-        $('model-btn').disabled = false;
-        $('model-btn').textContent = 'Download';
+
+    function selectModel(id) {
+      if (isDownloading) return;
+      selectedModelId = id;
+      renderModelCards(availableModels);
+      invoke('settings_apply', { patch: { model_id: id } }).catch(() => {});
+    }
+
+    function updateDownloadButtonState() {
+      const btn = document.getElementById('btn-download-action');
+      const statusText = document.getElementById('model-status-text');
+      const percentText = document.getElementById('model-percent-text');
+      const progressBar = document.getElementById('model-progress-bar');
+      const current = availableModels.find(m => m.id === selectedModelId);
+
+      if (isDownloading) {
+        btn.disabled = true;
+        btn.textContent = 'Downloading...';
+        btn.className = 'primary';
+      } else if (current && current.downloaded) {
+        btn.disabled = false;
+        btn.textContent = 'Installed ✓';
+        btn.className = 'ghost success';
+        statusText.textContent = `${current.name} is installed and active.`;
+        percentText.textContent = '100%';
+        progressBar.style.width = '100%';
+      } else {
+        btn.disabled = false;
+        btn.textContent = 'Download ' + (current ? current.id : '');
+        btn.className = 'primary';
+        statusText.textContent = 'Ready to download (~' + (current ? current.size_mb : '') + ' MB)';
+        percentText.textContent = '0%';
+        progressBar.style.width = '0%';
+      }
+    }
+
+    document.getElementById('btn-download-action').addEventListener('click', () => {
+      const current = availableModels.find(m => m.id === selectedModelId);
+      if (!current || isDownloading) return;
+
+      isDownloading = true;
+      updateDownloadButtonState();
+      document.getElementById('model-status-text').textContent = 'Connecting to HuggingFace...';
+
+      invoke('wizard_download_cmd', { id: selectedModelId }).catch((err) => {
+        isDownloading = false;
+        document.getElementById('model-status-text').textContent = 'Error: ' + err;
+        document.getElementById('model-status-text').className = 'status-msg err';
+        updateDownloadButtonState();
       });
     });
+
     listen('wizard:progress', (p) => {
-      if (p.id === $('model-select').value) {
-        $('model-bar').style.width = (p.percent * 100) + '%';
-        setStatus('model-status', Math.round(p.percent * 100) + '%', 'mute');
+      if (p.id === selectedModelId) {
+        isDownloading = true;
+        const percent = Math.min(100, Math.max(0, Math.round(p.percent)));
+        document.getElementById('model-progress-bar').style.width = percent + '%';
+        document.getElementById('model-percent-text').textContent = percent + '%';
+        document.getElementById('model-status-text').textContent = `Downloading ${p.id} (${percent}%)...`;
       }
     });
-    listen('wizard:error', (msg) => {
-      downloading = false;
-      setStatus('model-status', msg, 'err');
-      $('model-btn').disabled = false;
-      $('model-btn').textContent = 'Download';
+
+    listen('wizard:done', (p) => {
+      isDownloading = false;
+      document.getElementById('model-progress-bar').style.width = '100%';
+      document.getElementById('model-percent-text').textContent = '100%';
+      document.getElementById('model-status-text').textContent = 'Installation complete!';
+      refreshModels();
     });
 
-    // Init
+    listen('wizard:error', (msg) => {
+      isDownloading = false;
+      document.getElementById('model-status-text').textContent = 'Download error: ' + msg;
+      updateDownloadButtonState();
+    });
+
+    function refreshModels() {
+      invoke('model_list_wizard').then(renderModelCards).catch(() => {});
+    }
+
+    // Initialize State
     (async () => {
       try {
-        const st = await invoke('wizard_state_cmd');
-        window.__lastConfig = st;
-        step = st.step;
-        $('hotkey-chord').textContent = st.hotkey;
-        $('opt-launch').checked = st.launch_at_login;
-        $('opt-sounds').checked = st.sounds;
-        document.querySelector('input[name="compute"][value="' + st.compute_device + '"]').checked = true;
-        showPane(Math.min(step, total - 1));
+        const state = await invoke('wizard_state_cmd');
+        if (state.hotkey) {
+          const pretty = state.hotkey.replace(/\+/g, ' + ');
+          document.getElementById('hotkey-label').textContent = pretty;
+          document.getElementById('final-hotkey-echo').textContent = pretty;
+        }
+        document.getElementById('opt-launch').checked = state.launch_at_login;
+        document.getElementById('opt-sounds').checked = state.sounds;
+        const compRadio = document.querySelector(`input[name="compute"][value="${state.compute_device}"]`);
+        if (compRadio) compRadio.checked = true;
+
+        if (state.selected_model) selectedModelId = state.selected_model;
+        if (state.models) renderModelCards(state.models);
+        updateStepUI(Math.min(state.step, totalSteps - 1));
+      } catch (err) {
         refreshModels();
-      } catch (e) { showPane(0); }
+        updateStepUI(0);
+      }
     })();
   </script>
 </body>

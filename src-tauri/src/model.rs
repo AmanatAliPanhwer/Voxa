@@ -91,6 +91,8 @@ fn download(
     progress: &mut dyn FnMut(f32),
 ) -> Result<(), ErrorInfo> {
     let client = reqwest::blocking::Client::builder()
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
+        .timeout(std::time::Duration::from_secs(600))
         .build()
         .map_err(|err| dl_err(format!("http client failed: {err}")))?;
     let url = format!(
@@ -105,7 +107,23 @@ fn download(
     let mut response = request
         .send()
         .map_err(|err| dl_err(format!("download failed: {err}")))?;
-    let resumed = started > 0 && response.status() == reqwest::StatusCode::PARTIAL_CONTENT;
+    let mut resumed = started > 0 && response.status() == reqwest::StatusCode::PARTIAL_CONTENT;
+    if !response.status().is_success() && !resumed {
+        if started > 0 {
+            let _ = fs::remove_file(part_path);
+            let fresh_response = client
+                .get(&url)
+                .send()
+                .map_err(|err| dl_err(format!("download retry failed: {err}")))?;
+            if !fresh_response.status().is_success() {
+                return Err(dl_err(format!("download failed with HTTP {}", fresh_response.status())));
+            }
+            response = fresh_response;
+            resumed = false;
+        } else {
+            return Err(dl_err(format!("download failed with HTTP {}", response.status())));
+        }
+    }
     let mut file = if resumed {
         fs::OpenOptions::new()
             .create(true)

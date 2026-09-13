@@ -88,6 +88,11 @@ async fn session_loop(
                 if session.state() == State::Done {
                     tokio::time::sleep(std::time::Duration::from_millis(450)).await;
                     session.finish_done();
+                } else if session.state() == State::Error {
+                    tokio::time::sleep(std::time::Duration::from_millis(2500)).await;
+                    if session.state() == State::Error {
+                        session.finish_error();
+                    }
                 }
             }
             _ = tokio::time::sleep(std::time::Duration::from_millis(100)) => {
@@ -298,7 +303,8 @@ app.manage(AppState {
                 WebviewUrl::App("settings.html".into()),
             )
             .title("Voxa Settings")
-            .inner_size(760.0, 560.0)
+            .inner_size(840.0, 620.0)
+            .center()
             .build()?;
 
             let wizard_window = if cfg.first_run {
@@ -307,8 +313,8 @@ app.manage(AppState {
                     "wizard",
                     WebviewUrl::App("wizard.html".into()),
                 )
-                .title("Voxa")
-                .inner_size(440.0, 540.0)
+                .title("Voxa Setup")
+                .inner_size(520.0, 640.0)
                 .center()
                 .resizable(false)
                 .build()?;

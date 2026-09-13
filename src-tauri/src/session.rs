@@ -213,10 +213,17 @@ impl Session {
         }
     }
 
+    pub fn finish_error(&mut self) {
+        if self.state == State::Error {
+            self.to(State::Idle);
+        }
+    }
+
     fn begin_listening(&mut self) {
-        if self.state != State::Idle {
+        if self.state != State::Idle && self.state != State::Error {
             return;
         }
+        let _ = self.capture.take_error();
         match self.capture.promote() {
             Ok(()) => {
                 self.silent = false;

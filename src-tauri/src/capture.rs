@@ -17,11 +17,6 @@ const CHUNK_SIZE: usize = 1024;
 const RING_CAPACITY: usize = 65_536;
 const PREAMBLE_MS: usize = 300;
 const PREAMBLE_SAMPLES: usize = CLIP_SAMPLE_RATE * PREAMBLE_MS / 1000;
-const SILENT_RUN_MS: usize = 800;
-const SILENT_WINDOW_MS: usize = 2_000;
-const SILENT_RUN_SAMPLES: usize = CLIP_SAMPLE_RATE * SILENT_RUN_MS / 1000;
-const SILENT_WINDOW_SAMPLES: usize = CLIP_SAMPLE_RATE * SILENT_WINDOW_MS / 1000;
-const SILENCE_THRESHOLD: f32 = 1e-4;
 const LEVEL_WINDOW: usize = 800;
 const ATTACK_ALPHA: f32 = 0.998;
 const RELEASE_ALPHA: f32 = 0.221;
@@ -278,6 +273,11 @@ where
         }
     };
     let error_cb = move |e: cpal::Error| {
+        let err_str = e.to_string();
+        let lower = err_str.to_lowercase();
+        if lower.contains("underrun") || lower.contains("overrun") {
+            return;
+        }
         if let Ok(mut guard) = shared.lock() {
             if guard.error.is_none() {
                 guard.error = Some(ErrorInfo::new(
@@ -461,21 +461,6 @@ impl Worker {
                 self.meter.feed(sample, self.frames_at, CLIP_SAMPLE_RATE, &mut levels);
                 self.frames_at += 1;
                 self.clip_frames += 1;
-                if sample.abs() < SILENCE_THRESHOLD {
-                    self.silent_frames += 1;
-                    if self.clip_frames < SILENT_WINDOW_SAMPLES
-                        && self.silent_frames >= SILENT_RUN_SAMPLES
-                    {
-                        self.flag(ErrorInfo::new(
-                            ErrorKind::Capture,
-                            true,
-                            "no signal detected from the microphone",
-                        ));
-                        self.silent_frames = 0;
-                    }
-                } else {
-                    self.silent_frames = 0;
-                }
             } else {
                 self.preamble.push(sample);
             }
@@ -486,14 +471,6 @@ impl Worker {
         if !levels.is_empty() {
             if let Ok(mut shared) = self.shared.lock() {
                 shared.levels.extend(levels);
-            }
-        }
-    }
-
-    fn flag(&self, error: ErrorInfo) {
-        if let Ok(mut shared) = self.shared.lock() {
-            if shared.error.is_none() {
-                shared.error = Some(error);
             }
         }
     }
