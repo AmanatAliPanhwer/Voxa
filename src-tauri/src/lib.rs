@@ -12,6 +12,7 @@ mod transcribe;
 
 use frontend::AppState;
 use session::{Broadcast, Event, Inbound, Session, State};
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::menu::{Menu, MenuItem};
 use tauri::{Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWindowBuilder};
 
@@ -49,6 +50,8 @@ impl Broadcast for TauriBroadcast {
 async fn session_loop(
     session: &mut Session,
     mut inbox: tokio::sync::mpsc::Receiver<Inbound>,
+    app: tauri::AppHandle,
+    hands_free: std::sync::Arc<AtomicBool>,
 ) {
     loop {
         tokio::select! {
@@ -70,8 +73,66 @@ async fn session_loop(
             }
             _ = tokio::time::sleep(std::time::Duration::from_millis(100)) => {
                 session.drain_levels();
+                reconcile_bubble(&app, hands_free.load(Ordering::Relaxed), session.state() == State::Listening);
             }
         }
+    }
+}
+
+fn native_wayland() -> bool {
+    cfg!(target_os = "linux") && std::env::var_os("WAYLAND_DISPLAY").is_some()
+}
+
+fn place_bubble(app: &tauri::AppHandle, bubble: &tauri::WebviewWindow) -> Result<(), String> {
+    let pill = app
+        .get_webview_window("pill")
+        .ok_or_else(|| "no pill window".to_string())?;
+    let pos = pill.outer_position().map_err(|e| e.to_string())?;
+    let size = pill.outer_size().map_err(|e| e.to_string())?;
+    let (left, right) = app
+        .primary_monitor()
+        .map_err(|e| e.to_string())?
+        .map(|monitor| {
+            let r = monitor.size();
+            (
+                monitor.position().x as i32,
+                monitor.position().x as i32 + r.width as i32,
+            )
+        })
+        .unwrap_or((0, i32::MAX));
+    let margin = 12;
+    let gap = 6;
+    let disc = 32;
+    let left_x = pos.x - gap - disc;
+    let right_x = pos.x + size.width as i32 + gap;
+    let fits_left = left_x >= left + margin;
+    let fits_right = right_x + disc <= right - margin;
+    let x = if fits_left {
+        left_x
+    } else if fits_right {
+        right_x
+    } else {
+        left_x.max(left)
+    };
+    let y = pos.y + (size.height as i32 - disc) / 2;
+    bubble.set_position(PhysicalPosition::new(x, y)).map_err(|e| e.to_string())
+}
+
+fn reconcile_bubble(app: &tauri::AppHandle, armed: bool, listening: bool) {
+    let Some(bubble) = app.get_webview_window("bubble") else {
+        return;
+    };
+    let want = armed && listening;
+    let is_visible = bubble.is_visible().unwrap_or(false);
+    if want == is_visible {
+        return;
+    }
+    if want {
+        if place_bubble(app, &bubble).is_ok() {
+            let _ = bubble.show();
+        }
+    } else {
+        let _ = bubble.hide();
     }
 }
 
@@ -107,6 +168,7 @@ pub fn run() {
 
             let (state_tx, state_rx) = tokio::sync::watch::channel(State::Idle);
             let (inbox_tx, inbox_rx) = tokio::sync::mpsc::channel::<Inbound>(32);
+            let hands_free = std::sync::Arc::new(AtomicBool::new(false));
 
             let mut session = Session::new(
                 Box::new(TauriBroadcast {
@@ -126,13 +188,21 @@ pub fn run() {
                 cfg.recovery_hotkey.clone(),
                 Some(state_tx.clone()),
             );
+            let loop_hands_free = hands_free.clone();
+            let loop_app = app_handle.clone();
             tauri::async_runtime::spawn(async move {
-                session_loop(&mut session, inbox_rx).await;
+                session_loop(&mut session, inbox_rx, loop_app, loop_hands_free).await;
             });
 
             let config_lock = std::sync::Mutex::new(cfg.clone());
-            let hotkeys = std::sync::Arc::new(std::sync::Mutex::new(hotkeys::Hotkeys::new(
+            let hands_free_arc = hands_free.clone();
+            let app_for_notify = app_handle.clone();
+            let hotkeys = std::sync::Arc::new(std::sync::Mutex::new(hotkeys::Hotkeys::with_notify(
                 inbox_tx.clone(),
+                Some(Box::new(move |armed| {
+                    hands_free_arc.store(armed, Ordering::Relaxed);
+                    let _ = app_for_notify.emit("bubble:armed", armed);
+                })),
             )));
             hotkeys::spawn_ticker(hotkeys.clone());
             app.manage(AppState {
@@ -141,6 +211,7 @@ pub fn run() {
                 config: config_lock,
                 hotkeys,
                 models_dir: app_data.join("models"),
+                hands_free,
             });
 
             let pill = WebviewWindowBuilder::new(
@@ -159,6 +230,25 @@ pub fn run() {
             .build()?;
             pill.set_ignore_cursor_events(true)?;
             position_primary_bottom_center(&app_handle, &pill, 140.0, 32.0, 80.0)?;
+
+            let bubble = WebviewWindowBuilder::new(
+                app,
+                "bubble",
+                WebviewUrl::App("bubble.html".into()),
+            )
+            .title("Stop")
+            .inner_size(32.0, 32.0)
+            .decorations(false)
+            .transparent(true)
+            .always_on_top(true)
+            .skip_taskbar(true)
+            .shadow(false)
+            .resizable(false)
+            .visible(false)
+            .build()?;
+            if native_wayland() {
+                bubble.set_ignore_cursor_events(true)?;
+            }
 
             WebviewWindowBuilder::new(
                 app,
@@ -248,6 +338,7 @@ pub fn run() {
             frontend::settings_apply,
             frontend::model_list,
             frontend::cleanup_test_key,
+            frontend::bubble_stop,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

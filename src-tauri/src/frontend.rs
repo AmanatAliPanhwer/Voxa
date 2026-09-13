@@ -11,6 +11,7 @@ pub struct AppState {
     pub config: std::sync::Mutex<Config>,
     pub hotkeys: std::sync::Arc<std::sync::Mutex<crate::hotkeys::Hotkeys>>,
     pub models_dir: PathBuf,
+    pub hands_free: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
 
 #[tauri::command]
@@ -34,6 +35,25 @@ pub fn app_insert_last(app: tauri::AppHandle) -> Result<(), String> {
     state
         .inbox
         .try_send(Inbound::InsertLast)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn bubble_stop(app: tauri::AppHandle) -> Result<(), String> {
+    use std::sync::atomic::Ordering;
+    let state = app.state::<AppState>();
+    let mut runner = state
+        .hotkeys
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if runner.is_hands_free() {
+        runner.set_hands_free(false);
+        state.hands_free.store(false, Ordering::Relaxed);
+    }
+    drop(runner);
+    state
+        .inbox
+        .try_send(Inbound::ToggleHandsFree)
         .map_err(|e| e.to_string())
 }
 

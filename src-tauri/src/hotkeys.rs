@@ -165,29 +165,40 @@ impl Arbiter {
 pub struct Hotkeys {
     arbiter: Arbiter,
     inbox: tokio::sync::mpsc::Sender<Inbound>,
+    notify: Option<Box<dyn Fn(bool) + Send>>,
 }
 
 impl Hotkeys {
-    pub fn new(inbox: tokio::sync::mpsc::Sender<Inbound>) -> Self {
+    pub fn with_notify(
+        inbox: tokio::sync::mpsc::Sender<Inbound>,
+        notify: Option<Box<dyn Fn(bool) + Send>>,
+    ) -> Self {
         Self {
             arbiter: Arbiter::default(),
             inbox,
+            notify,
         }
     }
 
     pub fn key_down(&mut self, now: u64) {
+        let was = self.arbiter.is_hands_free();
         let _ = self.inbox.try_send(Inbound::Arm);
         let events = self.arbiter.key_down(now);
+        self.observe(was);
         self.flush(events);
     }
 
     pub fn key_up(&mut self, now: u64) {
+        let was = self.arbiter.is_hands_free();
         let events = self.arbiter.key_up(now);
+        self.observe(was);
         self.flush(events);
     }
 
     pub fn tick(&mut self, now: u64) {
+        let was = self.arbiter.is_hands_free();
         let events = self.arbiter.tick(now);
+        self.observe(was);
         let empty = events.is_empty();
         self.flush(events);
         if empty && !self.arbiter.is_hands_free() && self.arbiter.is_idle() {
@@ -197,6 +208,9 @@ impl Hotkeys {
 
     pub fn set_hands_free(&mut self, on: bool) {
         self.arbiter.set_hands_free(on);
+        if let Some(notify) = &self.notify {
+            notify(on);
+        }
     }
 
     pub fn is_hands_free(&self) -> bool {
@@ -206,6 +220,15 @@ impl Hotkeys {
     fn flush(&self, events: Vec<Activation>) {
         if !events.is_empty() {
             let _ = self.inbox.try_send(Inbound::Activation(events));
+        }
+    }
+
+    fn observe(&self, was: bool) {
+        let now = self.arbiter.is_hands_free();
+        if now != was {
+            if let Some(notify) = &self.notify {
+                notify(now);
+            }
         }
     }
 }
@@ -270,6 +293,52 @@ pub fn spawn_ticker(runner: Arc<Mutex<Hotkeys>>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::mpsc;
+
+    fn hotkeys_with_notifier() -> (Hotkeys, mpsc::Receiver<bool>) {
+        let (tx, rx) = mpsc::channel::<bool>();
+        let (inbox_tx, _inbox_rx) = tokio::sync::mpsc::channel::<Inbound>(8);
+        let notify_tx = tx.clone();
+        let h = Hotkeys::with_notify(
+            inbox_tx,
+            Some(Box::new(move |armed: bool| {
+                let _ = notify_tx.send(armed);
+            })),
+        );
+        (h, rx)
+    }
+
+    #[test]
+    fn hotkeys_notifies_lone_tap_stays_silent() {
+        let (mut h, rx) = hotkeys_with_notifier();
+        h.key_down(0);
+        h.key_up(100);
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn hotkeys_notifies_double_tap_on_and_off() {
+        let (mut h, rx) = hotkeys_with_notifier();
+        h.key_down(0);
+        h.key_up(100);
+        h.key_down(150);
+        h.key_up(200);
+        assert_eq!(rx.recv(), Ok(true));
+        h.key_down(250);
+        h.key_up(300);
+        h.key_down(320);
+        h.key_up(360);
+        assert_eq!(rx.recv(), Ok(false));
+    }
+
+    #[test]
+    fn hotkeys_notifies_set_hands_free() {
+        let (mut h, rx) = hotkeys_with_notifier();
+        h.set_hands_free(true);
+        assert_eq!(rx.recv(), Ok(true));
+        h.set_hands_free(false);
+        assert_eq!(rx.recv(), Ok(false));
+    }
 
     #[test]
     fn hold_crossing_threshold_emits_hold_began() {
