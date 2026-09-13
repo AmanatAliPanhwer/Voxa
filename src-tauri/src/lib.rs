@@ -11,10 +11,11 @@ mod session;
 mod sounds;
 mod store;
 mod transcribe;
+mod wizard;
 
 use frontend::AppState;
 use session::{Broadcast, Event, Inbound, Session, State};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use tauri::menu::{Menu, MenuItem};
 use tauri::{Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWindowBuilder};
 
@@ -239,18 +240,21 @@ pub fn run() {
                 use tauri_plugin_autostart::ManagerExt;
                 let _ = app_handle.autolaunch().enable();
             }
-            app.manage(AppState {
-                inbox: inbox_tx.clone(),
-                state_rx,
-                config: config_lock,
-                hotkeys,
-                models_dir: app_data.join("models"),
-                hands_free,
-                tone_preset,
-                insert_overrides,
-                sounds: sounds_enabled,
-                logs_dir: log_dir,
-            });
+app.manage(AppState {
+                 inbox: inbox_tx.clone(),
+                 state_rx,
+                 config: config_lock,
+                 hotkeys,
+                 models_dir: app_data.join("models"),
+                 hands_free,
+                 tone_preset,
+                 insert_overrides,
+                 sounds: sounds_enabled,
+                 logs_dir: log_dir,
+                 wizard_step: std::sync::atomic::AtomicUsize::new(if cfg.first_run { 0 } else { 5 }),
+                 wizard_downloading: std::sync::Arc::new(AtomicBool::new(false)),
+                 wizard_progress: std::sync::Arc::new(AtomicU32::new(0)),
+             });
 
             let pill = WebviewWindowBuilder::new(
                 app,
@@ -297,6 +301,23 @@ pub fn run() {
             .inner_size(760.0, 560.0)
             .build()?;
 
+            let wizard_window = if cfg.first_run {
+                let w = WebviewWindowBuilder::new(
+                    app,
+                    "wizard",
+                    WebviewUrl::App("wizard.html".into()),
+                )
+                .title("Voxa")
+                .inner_size(440.0, 540.0)
+                .center()
+                .resizable(false)
+                .build()?;
+                w.set_focus()?;
+                Some(w)
+            } else {
+                None
+            };
+            let _ = wizard_window;
             let settings_item =
                 MenuItem::with_id(app, "open_settings", "Open Settings", true, None::<&str>)?;
             let start_hold_item =
@@ -386,6 +407,11 @@ pub fn run() {
             frontend::diagnostics_peek,
             frontend::diagnostics_reveal,
             frontend::bubble_stop,
+            wizard::wizard_state_cmd,
+            wizard::wizard_set_step_cmd,
+            wizard::wizard_close_cmd,
+            wizard::wizard_download_cmd,
+            wizard::model_list_wizard,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

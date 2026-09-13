@@ -16,6 +16,9 @@ pub struct AppState {
     pub insert_overrides: std::sync::Arc<std::sync::Mutex<Vec<InsertOverride>>>,
     pub sounds: std::sync::Arc<std::sync::atomic::AtomicBool>,
     pub logs_dir: PathBuf,
+    pub wizard_step: std::sync::atomic::AtomicUsize,
+    pub wizard_downloading: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    pub wizard_progress: std::sync::Arc<std::sync::atomic::AtomicU32>,
 }
 
 #[tauri::command]

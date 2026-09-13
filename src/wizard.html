@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Voxa Setup</title>
+  <style>
+    :root {
+      --red: #ec3b33;
+      --bg: #0b0d12;
+      --panel: #131720;
+      --panel-2: #1a1f2b;
+      --ink: #e7ecf5;
+      --dim: #8b93a7;
+      --muted: #5b6377;
+      --line: #262c3a;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      background: var(--bg); color: var(--ink);
+      font: 13px/1.5 system-ui, sans-serif;
+      display: flex; flex-direction: column; user-select: none;
+    }
+    .brand {
+      display: flex; align-items: center; gap: 9px;
+      padding: 16px 22px 10px;
+    }
+    .mark { display: flex; gap: 3px; align-items: flex-end; height: 16px; }
+    .mark i { width: 3px; background: var(--red); border-radius: 1px; }
+    .brand span { font-size: 13px; letter-spacing: .16em; text-transform: uppercase; font-weight: 600; }
+    .steps { display: flex; gap: 6px; padding: 6px 22px 14px; }
+    .step-dot {
+      flex: 1; height: 4px; border-radius: 2px; background: var(--panel-2);
+      position: relative; overflow: hidden;
+    }
+    .step-dot::after {
+      content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 0;
+      background: var(--red); transition: width .25s ease;
+    }
+    .step-dot.on::after { width: 100%; }
+    .step-dot.done::after { width: 100%; background: #6fd8a0; }
+    .step-num {
+      position: absolute; right: -2px; top: -10px;
+      font-size: 9px; color: var(--muted); font-family: ui-monospace, monospace;
+    }
+    main { flex: 1; overflow-y: auto; padding: 6px 22px 22px; }
+    .pane { display: none; }
+    .pane.active { display: block; }
+    h2 {
+      font-size: 20px; font-weight: 700; margin-bottom: 6px; letter-spacing: -.01em;
+    }
+    .sub { color: var(--dim); font-size: 13px; margin-bottom: 22px; }
+    .touch { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+    .label { display: block; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+    .kbd {
+      display: inline-block; font-family: ui-monospace, Consolas, monospace; font-size: 13px;
+      background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px;
+      padding: 3px 10px; color: var(--ink);
+    }
+    .row { margin-bottom: 18px; }
+    .field { display: flex; gap: 8px; align-items: center; }
+    .hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
+    .status { margin-top: 10px; font-size: 12px; min-height: 18px; }
+    .status.ok { color: #6fd8a0; }
+    .status.err { color: #e98c86; }
+    .status.mute { color: var(--muted); }
+    .progress { height: 6px; border-radius: 3px; background: var(--panel-2); overflow: hidden; margin-top: 8px; }
+    .progress > i { display: block; height: 100%; width: 0; background: var(--red); border-radius: 3px; transition: width .15s ease; }
+    .switch { display: flex; align-items: center; gap: 12px; }
+    .switch input { width: 36px; height: 20px; appearance: none; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; position: relative; cursor: pointer; }
+    .switch input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--dim); transition: .15s ease; }
+    .switch input:checked { background: var(--red); border-color: var(--red); }
+    .switch input:checked::after { left: 20px; background: #fff; }
+    .radio { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 7px; cursor: pointer; }
+    .radio:hover { background: var(--panel-2); }
+    .radio input { accent-color: var(--red); }
+    .radio.empty { opacity: .55; }
+    .radio .sub { color: var(--muted); font-size: 11px; }
+    button.primary, button.ghost {
+      font: inherit; font-size: 12px; letter-spacing: .04em; border-radius: 7px;
+      padding: 8px 16px; cursor: pointer; border: 1px solid transparent;
+    }
+    button.primary { background: var(--red); color: #fff; }
+    button.primary:hover { filter: brightness(1.08); }
+    button.primary:disabled { opacity: .45; cursor: default; filter: none; }
+    button.ghost { background: var(--panel-2); border-color: var(--line); color: var(--ink); }
+    button.ghost:hover { border-color: #39415a; }
+    .nav { display: flex; justify-content: space-between; padding: 16px 22px; gap: 10px; }
+    .big { font-size: 15px; padding: 10px 24px; }
+    .center { justify-content: center; }
+    select {
+      font: inherit; color: var(--ink);
+      background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px;
+      padding: 8px 10px; width: 100%;
+    }
+    select:focus { outline: none; border-color: var(--red); }
+    .welcome-mark { margin-bottom: 18px; }
+    .welcome-mark .mark { height: 32px; }
+    .welcome-mark .mark i { width: 5px; height: 16px 9px 18px 10px 14px; }
+    .card {
+      background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+      padding: 16px; margin-bottom: 12px;
+    }
+    .card .kbd { font-size: 15px; padding: 5px 14px; }
+    .card p { color: var(--dim); font-size: 13px; margin-top: 8px; }
+    .all-done { text-align: center; padding-top: 22px; }
+    .check { width: 56px; height: 56px; border-radius: 50%; background: rgba(111,216,160,.12); color: #6fd8a0;
+      display: inline-flex; align-items: center; justify-content: center; font-size: 26px; margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+  <div class="brand">
+    <div class="mark"><i></i><i></i><i></i><i></i><i></i></div>
+    <span>Voxa</span>
+  </div>
+  <div class="steps" id="steps"></div>
+  <main>
+    <section class="pane active" data-pane="0">
+      <div class="all-done">
+        <div class="welcome-mark"><div class="mark"><i style="height:16px"></i><i style="height:22px"></i><i style="height:26px"></i><i style="height:22px"></i><i style="height:16px"></i></div></div>
+        <h2>Welcome to Voxa</h2>
+        <p class="sub">Your local-first dictation app. A few quick steps and you are ready.</p>
+      </div>
+    </section>
+
+    <section class="pane" data-pane="1">
+      <h2>Choose your hotkey</h2>
+      <p class="sub">Hold to dictate. A quick double-tap turns hands-free on.</p>
+      <div class="touch">
+        <span class="label">Current chord</span>
+        <div class="field">
+          <span class="kbd" id="hotkey-chord">–</span>
+          <button class="ghost" id="hotkey-record">Change</button>
+          <span class="hint mono" id="hotkey-echo"></span>
+        </div>
+      </div>
+      <p class="hint">The bubble next to the pill stops hands-free. You can change the chord in Settings later.</p>
+      <div class="status mute" id="hotkey-status"></div>
+    </section>
+
+    <section class="pane" data-pane="2">
+      <h2>Optional settings</h2>
+      <p class="sub">Skip any of these — none of them block dictation.</p>
+      <div class="touch">
+        <label class="switch">
+          <input type="checkbox" id="opt-launch">
+          <span class="label" style="margin:0">Launch at login</span>
+        </label>
+        <label class="switch" style="margin-top:16px">
+          <input type="checkbox" id="opt-sounds">
+          <span class="label" style="margin:0">Sounds</span>
+        </label>
+      </div>
+      <div class="touch" style="margin-top:14px">
+        <span class="label">Compute device</span>
+        <label class="radio"><input type="radio" name="compute" value="auto" checked><span><span class="label" style="margin:0">Auto</span><span class="sub" style="display:block">Let Voxa choose</span></span></label>
+        <label class="radio"><input type="radio" name="compute" value="cpu"><span><span class="label" style="margin:0">CPU</span><span class="sub" style="display:block">Always available</span></span></label>
+        <label class="radio empty"><input type="radio" name="compute" value="gpu" disabled><span><span class="label" style="margin:0">GPU</span><span class="sub" style="display:block">Ships in a later v1 build on Windows &amp; Linux</span></span></label>
+      </div>
+    </section>
+
+    <section class="pane" data-pane="3">
+      <h2>Pick your model</h2>
+      <p class="sub">The larger the model, the more accurate — and the slower to download.</p>
+      <div class="touch">
+        <span class="label">Whisper model</span>
+        <select id="model-select"></select>
+        <div class="progress" style="margin-top:14px"><i id="model-bar"></i></div>
+        <div class="status mute" id="model-status"></div>
+        <button class="ghost" id="model-btn" style="margin-top:10px">Download</button>
+      </div>
+    </section>
+
+    <section class="pane" data-pane="4">
+      <div class="all-done">
+        <div class="check">&#10003;</div>
+        <h2>All set</h2>
+        <p class="sub">Voxa is configured and ready to dictate.</p>
+        <button class="primary big" id="done-btn">Get started</button>
+      </div>
+    </section>
+  </main>
+  <div class="nav">
+    <button class="ghost" id="btn-back" style="visibility:hidden">Back</button>
+    <button class="primary" id="btn-next">Next</button>
+  </div>
+
+  <script>
+    const invoke = window.__TAURI__.core.invoke;
+    const listen = (event, handler) => window.__TAURI__.event.listen(event, (e) => handler(e.payload));
+
+    let step = 0;
+    const total = 5;
+    let recording = false;
+    let downloading = false;
+
+    function $(id) { return document.getElementById(id); }
+    function showPane(n) {
+      document.querySelectorAll('.pane').forEach((p) => p.classList.toggle('active', +p.dataset.pane === n));
+      $('btn-back').style.visibility = n > 0 ? 'visible' : 'hidden';
+      $('btn-next').textContent = n === total - 1 ? 'Get started' : 'Next';
+      renderDots();
+    }
+    function renderDots() {
+      $('steps').innerHTML = '';
+      for (let i = 0; i < total; i++) {
+        const d = document.createElement('div');
+        d.className = 'step-dot' + (i < step ? ' done' : '') + (i === step ? ' on' : '');
+        const span = document.createElement('span');
+        span.className = 'step-num'; span.textContent = i + 1;
+        d.appendChild(span);
+        $('steps').appendChild(d);
+      }
+    }
+    function setStatus(id, text, cls) {
+      const el = $(id);
+      el.textContent = text;
+      el.className = 'status ' + (cls || 'mute');
+    }
+
+    $('btn-back').addEventListener('click', () => { if (step > 0) { step--; showPane(step); refresh(); } });
+    $('btn-next').addEventListener('click', () => {
+      if (step === total - 1) { invoke('wizard_close_cmd'); return; }
+      if (step === 3 && downloading) return;
+      step++;
+      showPane(step);
+      if (step === 3) refreshModels();
+      refresh();
+    });
+
+    // Hotkey change-in-place
+    let pendingHotkey = null;
+    document.addEventListener('keydown', (e) => {
+      if (!recording) return;
+      e.preventDefault(); e.stopPropagation();
+      if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return;
+      if (!e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey) return;
+      const parts = [];
+      if (e.ctrlKey) parts.push('Ctrl');
+      if (e.altKey) parts.push('Alt');
+      if (e.shiftKey) parts.push('Shift');
+      if (e.metaKey) parts.push('Cmd');
+      const key = e.key === ' ' ? 'Space' : e.key.length === 1 ? e.key.toUpperCase() : e.key;
+      parts.push(key);
+      recording = false;
+      $('hotkey-record').textContent = 'Change';
+      $('hotkey-echo').textContent = '';
+      const chord = parts.join('+');
+      invoke('settings_apply', { patch: { hotkey: chord } }).then((cfg) => {
+        $('hotkey-chord').textContent = cfg.hotkey;
+        setStatus('hotkey-status', 'Chord applied live.', 'ok');
+      }).catch((err) => {
+        setStatus('hotkey-status', 'Reserved: ' + err, 'err');
+      });
+    });
+    $('hotkey-record').addEventListener('click', () => {
+      recording = !recording;
+      $('hotkey-record').textContent = recording ? 'Press chord…' : 'Change';
+      $('hotkey-echo').textContent = recording ? 'press your chord' : '';
+    });
+
+    // Optional settings
+    $('opt-launch').addEventListener('change', async (e) => {
+      try { await invoke('settings_apply', { patch: { launch_at_login: e.target.checked } }); } catch (err) { setStatus('opt-status', err, 'err'); e.target.checked = !e.target.checked; } });
+    $('opt-sounds').addEventListener('change', async (e) => {
+      try { await invoke('settings_apply', { patch: { sounds: e.target.checked } }); } catch (err) { setStatus('opt-status', err, 'err'); e.target.checked = !e.target.checked; } });
+    document.querySelectorAll('input[name="compute"]').forEach((input) => {
+      input.addEventListener('change', () => {
+        if (input.disabled) return;
+        invoke('settings_apply', { patch: { compute_device: input.value } }).catch(() => {});
+      });
+    });
+
+    // Model
+    function refreshModels() {
+      invoke('model_list_wizard').then((models) => {
+        const sel = $('model-select');
+        sel.innerHTML = '';
+        for (const m of models) {
+          const opt = document.createElement('option');
+          opt.value = m.id; opt.textContent = m.name + ' · ' + m.size_mb + ' MB' + (m.downloaded ? ' (installed)' : '');
+          sel.appendChild(opt);
+        }
+        const cfg = window.__lastConfig || {};
+        sel.value = cfg.selected_model || models[0]?.id || '';
+        downloading = models.some((m) => m.downloaded === false);
+        $('model-btn').disabled = downloading || !models.length;
+        $('model-btn').textContent = downloading ? 'Downloading…' : 'Download';
+      }).catch(() => {});
+    }
+    $('model-btn').addEventListener('click', () => {
+      const id = $('model-select').value;
+      if (!id || downloading) return;
+      downloading = true;
+      $('model-btn').disabled = true;
+      $('model-btn').textContent = 'Downloading…';
+      setStatus('model-status', 'Downloading…', 'mute');
+      invoke('wizard_download_cmd', { id }).catch((err) => {
+        downloading = false;
+        setStatus('model-status', err, 'err');
+        $('model-btn').disabled = false;
+        $('model-btn').textContent = 'Download';
+      });
+    });
+    listen('wizard:progress', (p) => {
+      if (p.id === $('model-select').value) {
+        $('model-bar').style.width = (p.percent * 100) + '%';
+        setStatus('model-status', Math.round(p.percent * 100) + '%', 'mute');
+      }
+    });
+    listen('wizard:error', (msg) => {
+      downloading = false;
+      setStatus('model-status', msg, 'err');
+      $('model-btn').disabled = false;
+      $('model-btn').textContent = 'Download';
+    });
+
+    // Init
+    (async () => {
+      try {
+        const st = await invoke('wizard_state_cmd');
+        window.__lastConfig = st;
+        step = st.step;
+        $('hotkey-chord').textContent = st.hotkey;
+        $('opt-launch').checked = st.launch_at_login;
+        $('opt-sounds').checked = st.sounds;
+        document.querySelector('input[name="compute"][value="' + st.compute_device + '"]').checked = true;
+        showPane(Math.min(step, total - 1));
+        refreshModels();
+      } catch (e) { showPane(0); }
+    })();
+  </script>
+</body>
+</html>
